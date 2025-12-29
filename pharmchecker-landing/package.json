@@ -8,9 +8,13 @@
     "start": "next start"
   },
   "dependencies": {
+    "ejs": "^3.1.10",
+    "got": "^14.6.5",
     "next": "^14.2.0",
+    "node-cron": "^4.2.1",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.30",

@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PharmChecker - 바코드 기반 약품 조제 안전 지원 시스템</title>
+  <link rel="icon" href="data:," />
+  <script src="https://js.tosspayments.com/v2/standard"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.6;
+      color: #191f28;
+      background-color: #ffffff;
+    }
+
+    /* 헤더 네비게이션 */
+    .header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      z-index: 1000;
+      padding: 12px 0;
+    }
+
+    .header .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      font-size: 24px;
+      font-weight: 700;
+      color: #191f28;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .user-profile {
+      position: relative;
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 16px;
+      border-radius: 24px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .user-info:hover {
+      background-color: #f8f9fa;
+    }
+
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .user-avatar img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    .user-name {
+      font-size: 15px;
+      font-weight: 500;
+      color: #191f28;
+    }
+
+    .dropdown-arrow {
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid #6b7684;
+      transition: transform 0.2s;
+    }
+
+    .user-info.active .dropdown-arrow {
+      transform: rotate(180deg);
+    }
+
+    .dropdown-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      min-width: 200px;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-10px);
+      transition: all 0.3s ease;
+    }
+
+    .dropdown-menu.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+
+    .dropdown-item {
+      padding: 14px 20px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .dropdown-item:first-child {
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
+    }
+
+    .dropdown-item:last-child {
+      border-bottom-left-radius: 12px;
+      border-bottom-right-radius: 12px;
+      border-bottom: none;
+    }
+
+    .dropdown-item:hover {
+      background-color: #f8f9fa;
+    }
+
+    .dropdown-item-icon {
+      font-size: 18px;
+    }
+
+    .dropdown-item-text {
+      font-size: 14px;
+      color: #191f28;
+      font-weight: 500;
+    }
+
+    .dropdown-item.logout {
+      color: #e74c3c;
+    }
+
+    .dropdown-item.logout:hover {
+      background-color: #fee;
+    }
+
+    .dropdown-item.logout .dropdown-item-text {
+      color: #e74c3c;
+    }
+
+    body {
+      padding-top: 60px; /* 고정 헤더 높이만큼 패딩 추가 */
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    section {
+      padding: 80px 0;
+      border-bottom: 1px solid #e5e8eb;
+    }
+
+    h1 {
+      font-size: 48px;
+      font-weight: 600;
+      line-height: 1.2;
+      margin-bottom: 24px;
+    }
+
+    h2 {
+      font-size: 32px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    h3 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    p {
+      font-size: 18px;
+      line-height: 1.8;
+      color: #4e5968;
+    }
+
+    .hero {
+      padding: 120px 0;
+      text-align: center;
+    }
+
+    .hero h1 {
+      font-size: 56px;
+      margin-bottom: 32px;
+    }
+
+    .hero p {
+      font-size: 20px;
+      margin-bottom: 48px;
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .button {
+      display: inline-block;
+      padding: 16px 32px;
+      font-size: 16px;
+      font-weight: 600;
+      text-decoration: none;
+      border-radius: 8px;
+      transition: all 0.2s;
+      cursor: pointer;
+      border: none;
+    }
+
+    .button-primary {
+      background-color: #191f28;
+      color: #ffffff;
+    }
+
+    .button-primary:hover {
+      background-color: #2c3440;
+    }
+
+    .button-secondary {
+      background-color: #ffffff;
+      color: #191f28;
+      border: 2px solid #e5e8eb;
+    }
+
+    .button-secondary:hover {
+      border-color: #191f28;
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      margin-top: 40px;
+    }
+
+    .card {
+      background-color: #f8f9fa;
+      padding: 32px;
+      border-radius: 12px;
+      border: 1px solid #e5e8eb;
+    }
+
+    .card h3 {
+      margin-bottom: 12px;
+    }
+
+    .card p {
+      font-size: 16px;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 24px;
+      margin-top: 40px;
+    }
+
+    .step {
+      background-color: #ffffff;
+      padding: 32px;
+      border-radius: 12px;
+      border: 1px solid #e5e8eb;
+    }
+
+    .step-number {
+      display: inline-block;
+      background-color: #191f28;
+      color: #ffffff;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 32px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .solution-section {
+      background-color: #f8f9fa;
+    }
+
+    .solution-content {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .highlight {
+      background-color: #fff5e1;
+      padding: 24px;
+      border-radius: 8px;
+      border-left: 4px solid #ffa726;
+      margin-top: 32px;
+    }
+
+    .highlight p {
+      font-weight: 600;
+      color: #191f28;
+    }
+
+    .philosophy-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      margin-top: 40px;
+    }
+
+    .philosophy-item {
+      text-align: center;
+      padding: 32px;
+      background-color: #ffffff;
+      border-radius: 12px;
+      border: 2px solid #e5e8eb;
+    }
+
+    .philosophy-item h3 {
+      font-size: 18px;
+      color: #191f28;
+    }
+
+    .cta-section {
+      background-color: #191f28;
+      color: #ffffff;
+      text-align: center;
+    }
+
+    .cta-section h2 {
+      color: #ffffff;
+      margin-bottom: 32px;
+    }
+
+    footer {
+      padding: 40px 0;
+      text-align: center;
+      background-color: #f8f9fa;
+      border-top: 1px solid #e5e8eb;
+    }
+
+    footer p {
+      font-size: 14px;
+      color: #6b7684;
+    }
+
+    .badge {
+      display: inline-block;
+      background-color: #e5e8eb;
+      color: #191f28;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 24px;
+    }
+
+    .pricing-section {
+      background-color: #f8f9fa;
+    }
+
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      margin-top: 40px;
+    }
+
+    .pricing-card {
+      background-color: #ffffff;
+      padding: 40px 32px;
+      border-radius: 12px;
+      border: 3px solid #e5e8eb;
+      text-align: center;
+      transition: all 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .pricing-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    }
+
+    .pricing-card.light {
+      border-color: #81c784;
+    }
+
+    .pricing-card.light:hover {
+      border-color: #66bb6a;
+      box-shadow: 0 8px 24px rgba(129, 199, 132, 0.3);
+    }
+
+    .pricing-card.basic {
+      border-color: #64b5f6;
+    }
+
+    .pricing-card.basic:hover {
+      border-color: #42a5f5;
+      box-shadow: 0 8px 24px rgba(100, 181, 246, 0.3);
+    }
+
+    .pricing-card.super {
+      border-color: #ba68c8;
+    }
+
+    .pricing-card.super:hover {
+      border-color: #ab47bc;
+      box-shadow: 0 8px 24px rgba(186, 104, 200, 0.3);
+    }
+
+    .pricing-card.premium {
+      border-color: #ffa726;
+    }
+
+    .pricing-card.premium:hover {
+      border-color: #fb8c00;
+      box-shadow: 0 8px 24px rgba(255, 167, 38, 0.3);
+    }
+
+    .plan-badge {
+      display: inline-block;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: white;
+    }
+
+    .plan-badge.light {
+      background: linear-gradient(135deg, #81c784, #66bb6a);
+    }
+
+    .plan-badge.basic {
+      background: linear-gradient(135deg, #64b5f6, #42a5f5);
+    }
+
+    .plan-badge.super {
+      background: linear-gradient(135deg, #ba68c8, #ab47bc);
+    }
+
+    .plan-badge.premium {
+      background: linear-gradient(135deg, #ffa726, #fb8c00);
+    }
+
+    .pricing-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #191f28;
+    }
+
+    .pricing-amount {
+      font-size: 36px;
+      font-weight: 700;
+      color: #191f28;
+      margin-bottom: 8px;
+    }
+
+    .pricing-period {
+      font-size: 14px;
+      color: #6b7684;
+      margin-bottom: 24px;
+    }
+
+    .pricing-feature {
+      background-color: #f8f9fa;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      color: #4e5968;
+      margin-bottom: 24px;
+    }
+
+    .pricing-button {
+      width: 100%;
+      padding: 16px;
+      background-color: #191f28;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .pricing-button:hover {
+      background-color: #2c3440;
+    }
+
+    @media (max-width: 768px) {
+      h1 {
+        font-size: 36px;
+      }
+
+      .hero h1 {
+        font-size: 40px;
+      }
+
+      h2 {
+        font-size: 28px;
+      }
+
+      section {
+        padding: 60px 0;
+      }
+
+      .hero {
+        padding: 80px 0;
+      }
+
+      .card-grid,
+      .steps,
+      .philosophy-grid,
+      .pricing-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 헤더 -->
+  <header class="header">
+    <div class="container">
+      <div class="logo">
+        <span>💊</span>
+        <span>PharmChecker</span>
+      </div>
+      <div class="user-profile">
+        <div class="user-info" onclick="toggleDropdown()">
+          <div class="user-avatar" id="userAvatar">
+            <span id="userInitial">U</span>
+          </div>
+          <span class="user-name" id="userName">게스트</span>
+          <div class="dropdown-arrow"></div>
+        </div>
+        <div class="dropdown-menu" id="dropdownMenu">
+          <div class="dropdown-item" onclick="viewProfile()">
+            <span class="dropdown-item-icon">👤</span>
+            <span class="dropdown-item-text">프로필 보기</span>
+          </div>
+          <div class="dropdown-item logout" onclick="logout()">
+            <span class="dropdown-item-icon">🚪</span>
+            <span class="dropdown-item-text">로그아웃</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="container">
+      <span class="badge">의료 B2B 소프트웨어</span>
+      <h1>PharmChecker<br>바코드 기반 약품 조제 안전 지원 시스템</h1>
+      <p>유사한 약품명, 혼동하기 쉬운 용량 표기<br>실수가 발생하기 쉬운 약국 조제 업무를 위한 신뢰할 수 있는 확인 도우미</p>
+      <div class="button-group">
+        <a href="#contact" class="button button-primary">데모 문의</a>
+        <a href="#how-it-works" class="button button-secondary">작동 방식</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="pricing" class="pricing-section">
+    <div class="container">
+      <h2>정기 구독 플랜</h2>
+      <p>약국의 일별 조제량에 맞춰 플랜을 선택해 주세요.</p>
+      <div class="pricing-grid">
+        <div class="pricing-card light">
+          <span class="plan-badge light">라이트</span>
+          <div class="pricing-title">일별 50건 이하</div>
+          <div class="pricing-amount">9,900원</div>
+          <div class="pricing-period">월 자동결제</div>
+          <div class="pricing-feature">일별 최대 조제 건수 50건 이하</div>
+          <button class="pricing-button" onclick="subscribePlan('라이트 플랜', 9900)">이 플랜 선택</button>
+        </div>
+        <div class="pricing-card basic">
+          <span class="plan-badge basic">베이직</span>
+          <div class="pricing-title">일별 100건 이하</div>
+          <div class="pricing-amount">16,500원</div>
+          <div class="pricing-period">월 자동결제</div>
+          <div class="pricing-feature">일별 최대 조제 건수 100건 이하</div>
+          <button class="pricing-button" onclick="subscribePlan('베이직 플랜', 16500)">이 플랜 선택</button>
+        </div>
+        <div class="pricing-card super">
+          <span class="plan-badge super">슈퍼</span>
+          <div class="pricing-title">일별 300건 이하</div>
+          <div class="pricing-amount">33,000원</div>
+          <div class="pricing-period">월 자동결제</div>
+          <div class="pricing-feature">일별 최대 조제 건수 300건 이하</div>
+          <button class="pricing-button" onclick="subscribePlan('슈퍼 플랜', 33000)">이 플랜 선택</button>
+        </div>
+        <div class="pricing-card premium">
+          <span class="plan-badge premium">프리미엄</span>
+          <div class="pricing-title">일별 300건 이상</div>
+          <div class="pricing-amount">55,000원</div>
+          <div class="pricing-period">월 자동결제</div>
+          <div class="pricing-feature">일별 최대 조제 건수 300건 이상</div>
+          <button class="pricing-button" onclick="subscribePlan('프리미엄 플랜', 55000)">이 플랜 선택</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="problem">
+    <div class="container">
+      <h2>문제</h2>
+      <p>조제 업무는 반복적이고 시간에 민감합니다. 숙련된 팀에서도 충분히 예방 가능한 실수가 발생할 수 있습니다.</p>
+      <div class="card-grid">
+        <div class="card">
+          <h3>유사한 약품명</h3>
+        </div>
+        <div class="card">
+          <h3>동일 성분, 다른 함량</h3>
+        </div>
+        <div class="card">
+          <h3>제조사에 따른 포장 변경</h3>
+        </div>
+        <div class="card">
+          <h3>반복 조제 업무에서의 인적 오류</h3>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="solution" class="solution-section">
+    <div class="container">
+      <div class="solution-content">
+        <h2>해결</h2>
+        <p>PharmChecker는 약품 포장에 인쇄된 제품 바코드를 사용해 실제 조제하려는 약품이 처방된 약품과 일치하는지 검증하는 조제 지원 프로그램입니다.</p>
+        <div class="highlight">
+          <p>이 시스템은 검증합니다.<br>의학적 결정을 내리지 않습니다.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how-it-works">
+    <div class="container">
+      <h2>작동 방식</h2>
+      <div class="steps">
+        <div class="step">
+          <span class="step-number">1</span>
+          <h3>처방 약품 목록 불러오기</h3>
+        </div>
+        <div class="step">
+          <span class="step-number">2</span>
+          <h3>제품 바코드 스캔</h3>
+        </div>
+        <div class="step">
+          <span class="step-number">3</span>
+          <h3>시스템 자동 비교</h3>
+        </div>
+        <div class="step">
+          <span class="step-number">4</span>
+          <h3>일치 / 불일치 즉시 알림</h3>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="container">
+      <h2>핵심 기능</h2>
+      <div class="card-grid">
+        <div class="card">
+          <h3>제품 바코드 기반 검증</h3>
+          <p>스캔한 포장 바코드를 처방 항목과 비교해 확인합니다.</p>
+        </div>
+        <div class="card">
+          <h3>성분 및 함량 일치 확인</h3>
+          <p>유효성분과 함량까지 함께 확인해 혼동을 줄입니다.</p>
+        </div>
+        <div class="card">
+          <h3>즉각적인 시각·음성 알림</h3>
+          <p>즉시 알림으로 망설임과 경고 누락을 줄입니다.</p>
+        </div>
+        <div class="card">
+          <h3>조제 오류 예방 로그</h3>
+          <p>검증 결과를 기록해 사후 확인과 개선에 활용할 수 있습니다.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="philosophy" class="solution-section">
+    <div class="container">
+      <h2>철학 / 신뢰</h2>
+      <div class="philosophy-grid">
+        <div class="philosophy-item">
+          <h3>약사를 의심하지 않습니다</h3>
+        </div>
+        <div class="philosophy-item">
+          <h3>사람은 실수할 수 있다고 가정합니다</h3>
+        </div>
+        <div class="philosophy-item">
+          <h3>검증은 빠르고 단순해야 합니다</h3>
+        </div>
+        <div class="philosophy-item">
+          <h3>한 번의 알림이 한 명의 환자를 보호할 수 있습니다</h3>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="contact" class="cta-section">
+    <div class="container">
+      <h2>약국에서 PharmChecker 도입을 고려하고 계신가요?</h2>
+      <a href="mailto:contact@pharmchecker.com" class="button button-primary">문의하기</a>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container">
+      <p>PharmChecker ©<br>약품 조제 안전 지원 시스템</p>
+      <p style="margin-top: 16px;">contact@pharmchecker.com</p>
+    </div>
+  </footer>
+
+  <script>
+    // 페이지 로드 시 사용자 정보 표시
+    window.addEventListener('DOMContentLoaded', function() {
+      const userDataStr = sessionStorage.getItem('user');
+      
+      if (!userDataStr) {
+        // 로그인하지 않은 경우 로그인 페이지로 리다이렉트
+        window.location.href = '/login';
+        return;
+      }
+      
+      try {
+        const userData = JSON.parse(userDataStr);
+        const userName = userData.name || '게스트';
+        const userEmail = userData.email || '';
+        const userPicture = userData.picture || '';
+        
+        // 사용자 이름 표시
+        document.getElementById('userName').textContent = userName + '님';
+        
+        // 프로필 사진이 있으면 표시, 없으면 이니셜 표시
+        if (userPicture) {
+          document.getElementById('userAvatar').innerHTML = `<img src="${userPicture}" alt="프로필">`;
+        } else {
+          // 이름의 첫 글자를 이니셜로 사용
+          const initial = userName.charAt(0).toUpperCase();
+          document.getElementById('userInitial').textContent = initial;
+        }
+        
+        console.log('로그인 사용자:', userData);
+      } catch (error) {
+        console.error('사용자 정보 파싱 오류:', error);
+        window.location.href = '/login';
+      }
+    });
+    
+    // 드롭다운 토글
+    function toggleDropdown() {
+      const dropdown = document.getElementById('dropdownMenu');
+      const userInfo = document.querySelector('.user-info');
+      
+      dropdown.classList.toggle('active');
+      userInfo.classList.toggle('active');
+    }
+    
+    // 외부 클릭 시 드롭다운 닫기
+    document.addEventListener('click', function(event) {
+      const userProfile = document.querySelector('.user-profile');
+      const dropdown = document.getElementById('dropdownMenu');
+      const userInfo = document.querySelector('.user-info');
+      
+      if (!userProfile.contains(event.target)) {
+        dropdown.classList.remove('active');
+        userInfo.classList.remove('active');
+      }
+    });
+    
+    // 프로필 보기
+    function viewProfile() {
+      const userDataStr = sessionStorage.getItem('user');
+      if (userDataStr) {
+        const userData = JSON.parse(userDataStr);
+        alert(`프로필 정보\n\n이름: ${userData.name}\n이메일: ${userData.email}`);
+      }
+    }
+    
+    // 로그아웃
+    function logout() {
+      if (confirm('로그아웃 하시겠습니까?')) {
+        sessionStorage.removeItem('user');
+        window.location.href = '/login';
+      }
+    }
+    
+    function subscribePlan(planName, amount) {
+      // 결제 페이지를 새 창으로 열기
+      const url = `/payment?plan=${encodeURIComponent(planName)}&amount=${amount}`;
+      const popupWidth = 600;
+      const popupHeight = 800;
+      const left = (window.screen.width - popupWidth) / 2;
+      const top = (window.screen.height - popupHeight) / 2;
+      
+      window.open(
+        url, 
+        'payment', 
+        `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`
+      );
+    }
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>회원가입 - PharmChecker</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 40px 20px;
+    }
+    .signup-container {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 600px;
+      width: 100%;
+      overflow: hidden;
+    }
+    .signup-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 40px 30px;
+      text-align: center;
+    }
+    .signup-header h1 {
+      font-size: 32px;
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+    .signup-header p {
+      font-size: 16px;
+      opacity: 0.9;
+    }
+    .logo {
+      width: 80px;
+      height: 80px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      margin: 0 auto 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+    }
+    .signup-content {
+      padding: 40px;
+    }
+    .step-indicator {
+      text-align: center;
+      margin-bottom: 30px;
+      color: #7f8c8d;
+      font-size: 14px;
+    }
+    .step {
+      display: inline-block;
+      margin: 0 5px;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: #ecf0f1;
+      line-height: 30px;
+      font-weight: 600;
+    }
+    .step.active {
+      background: #667eea;
+      color: white;
+    }
+    .step.completed {
+      background: #27ae60;
+      color: white;
+    }
+    .google-auth-section {
+      text-align: center;
+      padding: 30px 0;
+    }
+    .google-auth-section h2 {
+      font-size: 20px;
+      color: #2c3e50;
+      margin-bottom: 15px;
+    }
+    .google-auth-section p {
+      color: #7f8c8d;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+    .google-btn-container {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    .auth-success {
+      display: none;
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      color: #155724;
+      padding: 12px 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+      font-size: 14px;
+    }
+    .auth-success.show {
+      display: block;
+    }
+    .form-section {
+      display: none;
+      margin-top: 30px;
+    }
+    .form-section.show {
+      display: block;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    .form-group label {
+      display: block;
+      color: #2c3e50;
+      font-weight: 600;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    .form-group label .required {
+      color: #e74c3c;
+      margin-left: 4px;
+    }
+    .form-group input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e5e8eb;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+    .form-group input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    .form-group input.error {
+      border-color: #e74c3c;
+      animation: shake 0.3s;
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      75% { transform: translateX(5px); }
+    }
+    .form-group input[readonly] {
+      background-color: #f8f9fa;
+      cursor: not-allowed;
+    }
+    .form-group .helper-text {
+      font-size: 12px;
+      color: #7f8c8d;
+      margin-top: 5px;
+    }
+    .address-search-btn {
+      width: 100%;
+      padding: 12px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 10px;
+    }
+    .address-search-btn:hover {
+      background: #5568d3;
+    }
+    .address-inputs {
+      display: grid;
+      gap: 10px;
+    }
+    .submit-btn {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-top: 20px;
+    }
+    .submit-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    .submit-btn:disabled {
+      background: #bdc3c7;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .login-link {
+      text-align: center;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #ecf0f1;
+      color: #7f8c8d;
+      font-size: 14px;
+    }
+    .login-link a {
+      color: #667eea;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .login-link a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="signup-container">
+    <div class="signup-header">
+      <div class="logo">💊</div>
+      <h1>PharmChecker</h1>
+      <p>회원가입</p>
+    </div>
+    
+    <div class="signup-content">
+      <div class="step-indicator">
+        <span class="step active" id="step1">1</span>
+        <span class="step" id="step2">2</span>
+      </div>
+      
+      <!-- Step 1: 구글 계정 인증 -->
+      <div class="google-auth-section" id="authSection">
+        <h2>구글 계정으로 인증</h2>
+        <p>회원가입을 위해 구글 계정 인증이 필요합니다</p>
+        
+        <div class="google-btn-container">
+          <div id="g_id_onload"
+               data-client_id="506078799522-9ul40knlju9485bp654m76l2c0u76cbf.apps.googleusercontent.com"
+               data-callback="handleCredentialResponse"
+               data-auto_prompt="false">
+          </div>
+          <div class="g_id_signin"
+               data-type="standard"
+               data-size="large"
+               data-theme="outline"
+               data-text="signup_with"
+               data-shape="rectangular"
+               data-logo_alignment="left">
+          </div>
+        </div>
+        
+        <div class="auth-success" id="authSuccess">
+          ✓ 구글 계정 인증이 완료되었습니다!
+        </div>
+      </div>
+      
+      <!-- Step 2: 약국 정보 입력 -->
+      <div class="form-section" id="formSection">
+        <h2 style="font-size: 20px; color: #2c3e50; margin-bottom: 20px;">약국 정보 입력</h2>
+        
+        <form id="signupForm" onsubmit="handleSubmit(event)">
+          <div class="form-group">
+            <label for="email">이메일 주소<span class="required">*</span></label>
+            <input type="email" id="email" name="email" readonly required>
+            <div class="helper-text">구글 계정 이메일이 자동으로 입력됩니다</div>
+          </div>
+          
+          <div class="form-group">
+            <label for="pharmacistName">대표 약사명<span class="required">*</span></label>
+            <input type="text" id="pharmacistName" name="pharmacistName" placeholder="홍길동" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="pharmacistPhone">핸드폰 번호<span class="required">*</span></label>
+            <input type="tel" id="pharmacistPhone" name="pharmacistPhone" placeholder="010-1234-5678" maxlength="13" required>
+            <div class="helper-text">'-' 포함하여 입력해주세요 (예: 010-1234-5678)</div>
+          </div>
+          
+          <div class="form-group">
+            <label for="businessNumber">사업자 번호<span class="required">*</span></label>
+            <input type="text" id="businessNumber" name="businessNumber" placeholder="123-45-67890" maxlength="12" required>
+            <div class="helper-text">'-' 포함하여 입력해주세요 (예: 123-45-67890)</div>
+          </div>
+          
+          <div class="form-group">
+            <label for="pharmacyName">약국 이름<span class="required">*</span></label>
+            <input type="text" id="pharmacyName" name="pharmacyName" placeholder="행복약국" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="pharmacyPhone">약국 대표번호<span class="required">*</span></label>
+            <input type="tel" id="pharmacyPhone" name="pharmacyPhone" placeholder="02-1234-5678" maxlength="13" required>
+            <div class="helper-text">'-' 포함하여 입력해주세요</div>
+          </div>
+          
+          <div class="form-group">
+            <label for="pharmacyAddress">약국 주소<span class="required">*</span></label>
+            <button type="button" class="address-search-btn" onclick="searchAddress()">📍 주소 검색</button>
+            <div class="address-inputs">
+              <input type="text" id="postcode" name="postcode" placeholder="우편번호" readonly required>
+              <input type="text" id="address" name="address" placeholder="도로명 주소 또는 지번 주소" readonly required>
+              <input type="text" id="detailAddress" name="detailAddress" placeholder="상세주소 (선택)">
+            </div>
+          </div>
+          
+          <button type="submit" class="submit-btn" id="submitBtn" disabled>회원가입 완료</button>
+        </form>
+        
+        <div class="login-link">
+          이미 계정이 있으신가요? <a href="/login">로그인</a>
+        </div>
+      </div>
+      
+      <!-- 로그인 페이지 링크 (인증 전) -->
+      <div class="login-link" id="loginLinkAuth">
+        이미 계정이 있으신가요? <a href="/login">로그인</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let userEmail = '';
+    let userName = '';
+    let userPicture = '';
+    
+    // 구글 로그인 응답 처리
+    function handleCredentialResponse(response) {
+      console.log("Encoded JWT ID token: " + response.credential);
+      
+      try {
+        const payload = parseJwt(response.credential);
+        console.log("User info:", payload);
+        
+        userEmail = payload.email;
+        userName = payload.name;
+        userPicture = payload.picture || '';
+        
+        // 인증 성공 표시
+        document.getElementById('authSuccess').classList.add('show');
+        document.getElementById('step1').classList.add('completed');
+        document.getElementById('step2').classList.add('active');
+        
+        // 폼 섹션 표시
+        setTimeout(() => {
+          document.getElementById('authSection').style.display = 'none';
+          document.getElementById('loginLinkAuth').style.display = 'none';
+          document.getElementById('formSection').classList.add('show');
+          
+          // 이메일 자동 입력
+          document.getElementById('email').value = userEmail;
+          
+          // 제출 버튼 활성화
+          document.getElementById('submitBtn').disabled = false;
+        }, 1000);
+        
+      } catch (error) {
+        console.error("Authentication failed:", error);
+        alert('인증에 실패했습니다. 다시 시도해주세요.');
+      }
+    }
+    
+    // JWT 토큰 파싱
+    function parseJwt(token) {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      return JSON.parse(jsonPayload);
+    }
+    
+    // 다음 카카오 주소 검색 API
+    function searchAddress() {
+      new daum.Postcode({
+        oncomplete: function(data) {
+          // 도로명 주소와 지번 주소 중 선택한 것 사용
+          let addr = '';
+          
+          if (data.userSelectedType === 'R') {
+            addr = data.roadAddress; // 도로명 주소
+          } else {
+            addr = data.jibunAddress; // 지번 주소
+          }
+          
+          // 우편번호와 주소 정보를 필드에 입력
+          document.getElementById('postcode').value = data.zonecode;
+          document.getElementById('address').value = addr;
+          
+          // 상세주소 입력란으로 포커스 이동
+          document.getElementById('detailAddress').focus();
+        }
+      }).open();
+    }
+    
+    // 핸드폰 번호 자동 하이픈 추가 및 유효성 검증
+    function formatPhoneNumber(input) {
+      let value = input.value.replace(/[^0-9]/g, ''); // 숫자만 추출
+      let formatted = '';
+      
+      if (value.length <= 3) {
+        formatted = value;
+      } else if (value.length <= 7) {
+        formatted = value.substr(0, 3) + '-' + value.substr(3);
+      } else if (value.length <= 11) {
+        formatted = value.substr(0, 3) + '-' + value.substr(3, 4) + '-' + value.substr(7);
+      } else {
+        formatted = value.substr(0, 3) + '-' + value.substr(3, 4) + '-' + value.substr(7, 4);
+      }
+      
+      input.value = formatted;
+      
+      // 유효성 검증
+      const phonePattern = /^01[0-9]-\d{3,4}-\d{4}$/;
+      if (formatted.length >= 12 && !phonePattern.test(formatted)) {
+        input.setCustomValidity('올바른 핸드폰 번호 형식이 아닙니다 (010-1234-5678)');
+      } else {
+        input.setCustomValidity('');
+      }
+    }
+    
+    // 일반 전화번호 자동 하이픈 추가
+    function formatTelNumber(input) {
+      let value = input.value.replace(/[^0-9]/g, '');
+      let formatted = '';
+      
+      // 서울 02
+      if (value.startsWith('02')) {
+        if (value.length <= 2) {
+          formatted = value;
+        } else if (value.length <= 5) {
+          formatted = value.substr(0, 2) + '-' + value.substr(2);
+        } else if (value.length <= 9) {
+          formatted = value.substr(0, 2) + '-' + value.substr(2, 3) + '-' + value.substr(5);
+        } else {
+          formatted = value.substr(0, 2) + '-' + value.substr(2, 4) + '-' + value.substr(6, 4);
+        }
+      } 
+      // 지역번호 3자리 (031, 032 등)
+      else {
+        if (value.length <= 3) {
+          formatted = value;
+        } else if (value.length <= 6) {
+          formatted = value.substr(0, 3) + '-' + value.substr(3);
+        } else if (value.length <= 10) {
+          formatted = value.substr(0, 3) + '-' + value.substr(3, 3) + '-' + value.substr(6);
+        } else {
+          formatted = value.substr(0, 3) + '-' + value.substr(3, 4) + '-' + value.substr(7, 4);
+        }
+      }
+      
+      input.value = formatted;
+    }
+    
+    // 사업자 번호 자동 하이픈 추가
+    function formatBusinessNumber(input) {
+      let value = input.value.replace(/[^0-9]/g, '');
+      let formatted = '';
+      
+      if (value.length <= 3) {
+        formatted = value;
+      } else if (value.length <= 5) {
+        formatted = value.substr(0, 3) + '-' + value.substr(3);
+      } else if (value.length <= 10) {
+        formatted = value.substr(0, 3) + '-' + value.substr(3, 2) + '-' + value.substr(5);
+      } else {
+        formatted = value.substr(0, 3) + '-' + value.substr(3, 2) + '-' + value.substr(5, 5);
+      }
+      
+      input.value = formatted;
+      
+      // 10자리 완성 여부 확인
+      if (formatted.length === 12 && value.length !== 10) {
+        input.setCustomValidity('사업자 번호는 10자리여야 합니다');
+      } else {
+        input.setCustomValidity('');
+      }
+    }
+    
+    // 입력 필드에 이벤트 리스너 추가
+    document.addEventListener('DOMContentLoaded', function() {
+      // 핸드폰 번호 포맷팅
+      const pharmacistPhone = document.getElementById('pharmacistPhone');
+      if (pharmacistPhone) {
+        pharmacistPhone.addEventListener('input', function() {
+          formatPhoneNumber(this);
+        });
+      }
+      
+      // 약국 전화번호 포맷팅
+      const pharmacyPhone = document.getElementById('pharmacyPhone');
+      if (pharmacyPhone) {
+        pharmacyPhone.addEventListener('input', function() {
+          formatTelNumber(this);
+        });
+      }
+      
+      // 사업자 번호 포맷팅
+      const businessNumber = document.getElementById('businessNumber');
+      if (businessNumber) {
+        businessNumber.addEventListener('input', function() {
+          formatBusinessNumber(this);
+        });
+      }
+    });
+    
+    // 폼 제출 처리
+    function handleSubmit(event) {
+      event.preventDefault();
+      
+      // 모든 필수 필드 검증
+      const form = document.getElementById('signupForm');
+      const inputs = form.querySelectorAll('input[required]');
+      let isValid = true;
+      let firstErrorField = null;
+      
+      inputs.forEach(input => {
+        input.classList.remove('error');
+        
+        if (!input.value.trim()) {
+          isValid = false;
+          input.classList.add('error');
+          
+          if (!firstErrorField) {
+            firstErrorField = input;
+          }
+        }
+      });
+      
+      if (!isValid) {
+        alert('모든 필수 항목을 입력해주세요.');
+        if (firstErrorField) {
+          firstErrorField.focus();
+        }
+        return;
+      }
+      
+      // 핸드폰 번호 유효성 검증
+      const phonePattern = /^01[0-9]-\d{3,4}-\d{4}$/;
+      const pharmacistPhone = document.getElementById('pharmacistPhone').value;
+      if (!phonePattern.test(pharmacistPhone)) {
+        alert('올바른 핸드폰 번호 형식이 아닙니다 (예: 010-1234-5678)');
+        document.getElementById('pharmacistPhone').classList.add('error');
+        document.getElementById('pharmacistPhone').focus();
+        return;
+      }
+      
+      // 사업자 번호 유효성 검증 (10자리)
+      const businessNumber = document.getElementById('businessNumber').value.replace(/[^0-9]/g, '');
+      if (businessNumber.length !== 10) {
+        alert('사업자 번호는 10자리여야 합니다 (예: 123-45-67890)');
+        document.getElementById('businessNumber').classList.add('error');
+        document.getElementById('businessNumber').focus();
+        return;
+      }
+      
+      // 폼 데이터 수집
+      const formData = {
+        email: document.getElementById('email').value,
+        pharmacistName: document.getElementById('pharmacistName').value,
+        pharmacistPhone: document.getElementById('pharmacistPhone').value,
+        businessNumber: document.getElementById('businessNumber').value,
+        pharmacyName: document.getElementById('pharmacyName').value,
+        pharmacyName: document.getElementById('pharmacyName').value,
+        pharmacyPhone: document.getElementById('pharmacyPhone').value,
+        postcode: document.getElementById('postcode').value,
+        address: document.getElementById('address').value,
+        detailAddress: document.getElementById('detailAddress').value || '',
+        googlePicture: userPicture
+      };
+      
+      console.log('회원가입 데이터:', formData);
+      
+      // TODO: 서버로 데이터 전송
+      // 현재는 콘솔에 출력 및 세션 저장
+      sessionStorage.setItem('user', JSON.stringify({
+        email: formData.email,
+        name: formData.pharmacistName,
+        picture: formData.googlePicture,
+        pharmacistPhone: formData.pharmacistPhone,
+        businessNumber: formData.businessNumber,
+        pharmacyName: formData.pharmacyName,
+        pharmacyPhone: formData.pharmacyPhone,
+        fullAddress: formData.address + ' ' + formData.detailAddress
+      }));
+      
+      alert('회원가입이 완료되었습니다!');
+      window.location.href = '/pharmchecker';
+    }
+    
+    // 개발 모드
+    window.addEventListener('load', function() {
+      const clientId = document.querySelector('[data-client_id]').getAttribute('data-client_id');
+      if (clientId === 'YOUR_GOOGLE_CLIENT_ID') {
+        console.warn('⚠️ 구글 클라이언트 ID를 설정해주세요.');
+        
+        // 개발 모드: 임시 인증 버튼
+        const devButton = document.createElement('button');
+        devButton.textContent = '개발 모드 인증 (테스트용)';
+        devButton.style.cssText = 'padding: 12px 24px; background: #4285f4; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; margin-top: 20px;';
+        devButton.onclick = function() {
+          handleCredentialResponse({
+            credential: createTestJWT()
+          });
+        };
+        document.querySelector('.google-btn-container').appendChild(devButton);
+      }
+    });
+    
+    // 테스트용 JWT 생성
+    function createTestJWT() {
+      const header = btoa(JSON.stringify({alg: "HS256", typ: "JWT"}));
+      const payload = btoa(JSON.stringify({
+        email: 'test@pharmchecker.com',
+        name: '테스트 사용자',
+        picture: ''
+      }));
+      return header + '.' + payload + '.signature';
+    }
+  </script>
+</body>
+</html>

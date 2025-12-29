@@ -1,12 +1,52 @@
 const express = require("express");
 const got = require("got");
 
-const app = express();
+const router = express.Router();
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// 첫 화면 - 로그인 페이지로 리다이렉트
+router.get('/', function (req, res) {
+  res.redirect('/login');
+});
 
-app.post("/confirm", function (req, res) {
+// 로그인 페이지
+router.get('/login', function (req, res) {
+  res.render('login');
+});
+
+// 회원가입 페이지
+router.get('/join', function (req, res) {
+  res.render('join');
+});
+
+// 결제 페이지 (팝업용)
+router.get('/payment', function (req, res) {
+  res.render('index');
+});
+
+// PharmChecker 메인 페이지
+router.get('/pharmchecker', function (req, res) {
+  res.render('pharmchecker');
+});
+
+// 결제 성공 페이지
+router.get('/success', function (req, res) {
+  res.render('success');
+});
+
+// 결제 실패 페이지
+router.get('/fail', function (req, res) {
+  res.render('fail', {
+    code: req.query.code || 'UNKNOWN_ERROR',
+    message: req.query.message || '알 수 없는 에러가 발생했습니다.'
+  });
+});
+
+// 구매 완료 페이지
+router.get('/purchase-complete', function (req, res) {
+  res.render('purchase-complete');
+});
+
+router.post("/confirm", function (req, res) {
   // 클라이언트에서 받은 JSON 요청 바디입니다.
   const { paymentKey, orderId, amount } = req.body;
 
@@ -42,6 +82,4 @@ app.post("/confirm", function (req, res) {
     });
 });
 
-app.listen(8080, () =>
-  console.log(`http://localhost:${8080} 으로 샘플 앱이 실행되었습니다.`)
-);
+module.exports = router;

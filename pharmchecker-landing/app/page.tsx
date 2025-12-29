@@ -1,6 +1,40 @@
 const sectionTitleClass = "text-2xl font-semibold tracking-tight text-slate-900";
 const sectionBodyClass = "mt-3 text-base leading-7 text-slate-700";
 
+type Plan = {
+  name: string;
+  monthlyPrice: string;
+  quota: string;
+  detail: string;
+};
+
+const plans: Plan[] = [
+  {
+    name: "60건 이하",
+    monthlyPrice: "월 9,900원",
+    quota: "월 조제 건수 60건 이하",
+    detail: "필수 기능 중심으로, 가볍게 시작하는 정기 구독 플랜입니다."
+  },
+  {
+    name: "60~100건",
+    monthlyPrice: "월 16,500원",
+    quota: "월 조제 건수 60건 이상 100건 이하",
+    detail: "일상적인 조제 흐름에서 빠른 검증을 안정적으로 지원합니다."
+  },
+  {
+    name: "100~300건",
+    monthlyPrice: "월 33,000원",
+    quota: "월 조제 건수 100건 이상 300건 이하",
+    detail: "조제량이 늘어나는 환경에서 일관된 확인 흐름을 유지합니다."
+  },
+  {
+    name: "300건 이상",
+    monthlyPrice: "월 55,000원",
+    quota: "월 조제 건수 300건 이상",
+    detail: "조제량이 많은 환경에서도 빠르고 단순한 검증을 지원합니다."
+  }
+];
+
 function Container({ children }: { children: React.ReactNode }) {
   return <div className="mx-auto w-full max-w-6xl px-6">{children}</div>;
 }
@@ -25,8 +59,58 @@ function Card({
 }
 
 export default function Page() {
+
   return (
     <main className="min-h-screen">
+      {/* Subscription Plans (Top) */}
+      <section className="border-b border-slate-200 bg-white">
+        <Container>
+          <div className="py-12 lg:py-14">
+            <div className="flex flex-col gap-3">
+              <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+                PharmChecker 정기 구독 (4가지 플랜)
+              </h2>
+              <p className="text-base leading-7 text-slate-700">
+                약국의 월 조제량에 맞춰 플랜을 선택해 주세요.
+              </p>
+            </div>
+
+            <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-4">
+              {plans.map((plan) => {
+                return (
+                  <div
+                    key={plan.name}
+                    className="flex h-full flex-col rounded-2xl border-2 border-slate-300 bg-white p-6"
+                  >
+                    <div className="min-h-[124px]">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="text-sm font-semibold text-slate-900">
+                          {plan.name}
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <div className="text-lg font-semibold tabular-nums text-slate-900">
+                            {plan.monthlyPrice}
+                          </div>
+                          <div className="text-xs leading-6 text-slate-600">정기 구독</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 min-h-[44px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm leading-6 text-slate-700">
+                        {plan.quota}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex-1 text-sm leading-6 text-slate-700">
+                      {plan.detail}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </Container>
+      </section>
+
       {/* 1. Hero Section */}
       <section className="border-b border-slate-200 bg-white">
         <Container>
