@@ -1,19 +1,9 @@
-/**
- * Drug Master Sync (Node Batch)
- *
- * 실행:
- *   node scripts/drug_master_sync.js --mode=daily
- *   node scripts/drug_master_sync.js --mode=monthly
- *
- * daily  : 전체 페이지 훑되, 품목허가일자 최근 3개월만 upsert
- * monthly: 전체 페이지 훑고 필터 없이 upsert
- */
-
+import 'dotenv/config';
 import fetch from "node-fetch";
 import { createClient } from "@supabase/supabase-js";
 
 /* ===============================
- * 환경변수
+ * ENV
  * =============================== */
 const {
   SUPABASE_URL,
@@ -26,7 +16,7 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !ODCLOUD_SERVICE_KEY) {
 }
 
 /* ===============================
- * 모드 파싱
+ * MODE
  * =============================== */
 const MODE = (() => {
   const arg = process.argv.find((v) => v.startsWith("--mode="));
@@ -44,13 +34,13 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
 });
 
 /* ===============================
- * 상수
+ * CONST
  * =============================== */
 const PER_PAGE = 200;
 const UPSERT_CHUNK = 1000;
 
 /* ===============================
- * util (TS 코드 계승)
+ * UTIL
  * =============================== */
 function norm(v) {
   return String(v ?? "")
@@ -74,6 +64,7 @@ const name = (r) =>
       getByMeaning(r, "제품명") ??
       "",
   ).trim();
+
 const unit = (r) => Number(getByMeaning(r, "제품총수량") ?? 0) || 0;
 const type = (r) => norm(getByMeaning(r, "전문일반구분"));
 const remark = (r) => norm(getByMeaning(r, "비고"));
@@ -82,7 +73,7 @@ const approved = (r) =>
   String(getByMeaning(r, "품목허가일자") ?? "");
 
 /* ===============================
- * 날짜
+ * DATE
  * =============================== */
 function parseApprovalDate(s) {
   if (!s) return null;
@@ -106,7 +97,7 @@ function withinLastMonths(dateStr, months) {
 }
 
 /* ===============================
- * Swagger → 최신 UDDI
+ * UDDI
  * =============================== */
 async function findLatestUddiPath() {
   const swaggerUrl =
@@ -135,7 +126,7 @@ async function findLatestUddiPath() {
 }
 
 /* ===============================
- * upsert helper
+ * UPSERT
  * =============================== */
 async function upsertBatch(records) {
   let count = 0;
@@ -163,6 +154,8 @@ async function run() {
   let processed = 0;
   let upserted = 0;
 
+  const EXCLUDED_TYPES = ["일반의약품", "한약재", "의약외품"];
+
   while (true) {
     const url =
       `${apiBase}` +
@@ -181,7 +174,7 @@ async function run() {
     for (const r of rows) {
       processed++;
 
-      if (type(r) !== "전문의약품") continue;
+      if (EXCLUDED_TYPES.includes(type(r))) continue;
       if (remark(r).includes("한약재")) continue;
       if (cancel(r)) continue;
       if (MODE === "daily" && !withinLastMonths(approved(r), 3)) continue;

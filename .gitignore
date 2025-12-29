@@ -27,3 +27,7 @@ logs/
 
 # Netlify
 .netlify/
+
+
+#.환경변수 
+.env
