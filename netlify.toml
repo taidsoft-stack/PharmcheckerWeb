@@ -4,10 +4,8 @@
   publish = "public"
 
 [functions]
-  # esbuild를 사용하여 모든 의존성을 번들링
-  node_bundler = "esbuild"
-  # 특정 모듈은 외부에서 로드 (너무 크거나 네이티브 모듈)
-  external_node_modules = ["aws-sdk"]
+  # nft (Node File Trace)를 사용하여 의존성 자동 감지
+  node_bundler = "nft"
   # 정적 파일들 포함
   included_files = ["views/**", "data/**"]
 

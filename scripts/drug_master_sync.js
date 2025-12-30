@@ -1,10 +1,10 @@
 import 'dotenv/config';
-import fetch from "node-fetch";
-import { createClient } from "@supabase/supabase-js";
+import fetch from 'node-fetch';
+import { createClient } from '@supabase/supabase-js';
 
-/* ===============================
+/* ======================================================
  * ENV
- * =============================== */
+ * ====================================================== */
 const {
   SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY,
@@ -12,104 +12,121 @@ const {
 } = process.env;
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !ODCLOUD_SERVICE_KEY) {
-  throw new Error("❌ Missing env vars");
+  throw new Error('❌ Missing required environment variables');
 }
 
-/* ===============================
+/* ======================================================
  * MODE
- * =============================== */
+ * ====================================================== */
 const MODE = (() => {
-  const arg = process.argv.find((v) => v.startsWith("--mode="));
-  return arg ? arg.split("=")[1] : "daily";
+  const arg = process.argv.find(v => v.startsWith('--mode='));
+  return arg ? arg.split('=')[1] : 'daily';
 })();
-if (!["daily", "monthly"].includes(MODE)) {
-  throw new Error("❌ mode must be daily or monthly");
+
+if (!['daily', 'monthly'].includes(MODE)) {
+  throw new Error('❌ mode must be daily or monthly');
 }
 
-/* ===============================
- * Supabase
- * =============================== */
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: { persistSession: false },
-});
+/* ======================================================
+ * SUPABASE
+ * ====================================================== */
+const supabase = createClient(
+  SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY,
+  { auth: { persistSession: false } }
+);
 
-/* ===============================
+/* ======================================================
  * CONST
- * =============================== */
+ * ====================================================== */
 const PER_PAGE = 200;
 const UPSERT_CHUNK = 1000;
+const EXCLUDED_TYPES = ['일반의약품', '한약재', '의약외품'];
 
-/* ===============================
+/* ======================================================
  * UTIL
- * =============================== */
-function norm(v) {
-  return String(v ?? "")
-    .replace(/[\u00A0\u2000-\u200B\u3000]/g, "")
-    .replace(/\s+/g, "")
+ * ====================================================== */
+function normalize(v) {
+  return String(v ?? '')
+    .replace(/[\u00A0\u2000-\u200B\u3000]/g, '')
+    .replace(/\s+/g, '')
     .trim();
 }
 
 function getByMeaning(row, key) {
   for (const k of Object.keys(row)) {
-    if (norm(k) === key) return row[k];
+    if (normalize(k) === key) return row[k];
   }
   return undefined;
 }
 
-const pack = (r) => String(getByMeaning(r, "표준코드") ?? "").trim();
-const base = (r) => String(getByMeaning(r, "대표코드") ?? "").trim();
-const name = (r) =>
+/* ======================================================
+ * FIELD MAPPERS
+ * ====================================================== */
+const pack = r => String(getByMeaning(r, '표준코드') ?? '').trim();
+const base = r => String(getByMeaning(r, '대표코드') ?? '').trim();
+const name = r =>
   String(
-    getByMeaning(r, "한글상품명") ??
-      getByMeaning(r, "제품명") ??
-      "",
+    getByMeaning(r, '한글상품명') ??
+    getByMeaning(r, '제품명') ??
+    ''
   ).trim();
 
-const unit = (r) => Number(getByMeaning(r, "제품총수량") ?? 0) || 0;
-const type = (r) => norm(getByMeaning(r, "전문일반구분"));
-const remark = (r) => norm(getByMeaning(r, "비고"));
-const cancel = (r) => getByMeaning(r, "취소일자");
-const approved = (r) =>
-  String(getByMeaning(r, "품목허가일자") ?? "");
+const unit = r => Number(getByMeaning(r, '제품총수량') ?? 0) || 0;
+const category = r => normalize(getByMeaning(r, '전문일반구분'));
+const remark = r => normalize(getByMeaning(r, '비고'));
+const canceled = r => getByMeaning(r, '취소일자');
+const approvedRaw = r => String(getByMeaning(r, '품목허가일자') ?? '').trim();
 
-/* ===============================
- * DATE
- * =============================== */
-function parseApprovalDate(s) {
-  if (!s) return null;
-  const str = String(s).trim();
+/* ======================================================
+ * APPROVAL DATE PARSER (최종 규칙)
+ * ====================================================== */
+function parseApprovalDate(value) {
+  if (!value) return null;
 
-  if (/^\d{8}$/.test(str)) {
+  // YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T00:00:00Z`);
+  }
+
+  // YYYY.MM.DD
+  if (/^\d{4}\.\d{2}\.\d{2}$/.test(value)) {
+    return new Date(`${value.replace(/\./g, '-')}T00:00:00Z`);
+  }
+
+  // YYYYMMDD
+  if (/^\d{8}$/.test(value)) {
     return new Date(
-      `${str.slice(0, 4)}-${str.slice(4, 6)}-${str.slice(6, 8)}`,
+      `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}T00:00:00Z`
     );
   }
-  const d = new Date(str.replace(/\./g, "-"));
-  return isNaN(d.getTime()) ? null : d;
+
+  return null;
 }
 
-function withinLastMonths(dateStr, months) {
-  const d = parseApprovalDate(dateStr);
+function isWithinLastMonths(value, months) {
+  const d = parseApprovalDate(value);
   if (!d) return false;
+
   const limit = new Date();
   limit.setMonth(limit.getMonth() - months);
   return d >= limit;
 }
 
-/* ===============================
- * UDDI
- * =============================== */
+/* ======================================================
+ * FIND LATEST UDDI
+ * ====================================================== */
 async function findLatestUddiPath() {
   const swaggerUrl =
-    "https://infuser.odcloud.kr/oas/docs?namespace=15067462/v1";
+    'https://infuser.odcloud.kr/oas/docs?namespace=15067462/v1';
 
-  const swagger = await fetch(swaggerUrl).then((r) => r.json());
+  const swagger = await fetch(swaggerUrl).then(r => r.json());
 
-  let latestPath = "";
+  let latestPath = '';
   let latestDate = -1;
 
   for (const p of Object.keys(swagger.paths ?? {})) {
-    const summary = swagger.paths[p]?.get?.summary ?? "";
+    const summary = swagger.paths[p]?.get?.summary ?? '';
     const m = summary.match(/(\d{8})$/);
     if (!m) continue;
 
@@ -120,41 +137,44 @@ async function findLatestUddiPath() {
     }
   }
 
-  if (!latestPath) throw new Error("❌ Cannot find latest UDDI");
+  if (!latestPath) throw new Error('❌ Failed to detect latest UDDI');
 
   return `https://api.odcloud.kr/api${latestPath}`;
 }
 
-/* ===============================
+/* ======================================================
  * UPSERT
- * =============================== */
-async function upsertBatch(records) {
+ * ====================================================== */
+async function upsertBatch(rows) {
   let count = 0;
-  for (let i = 0; i < records.length; i += UPSERT_CHUNK) {
-    const chunk = records.slice(i, i + UPSERT_CHUNK);
+
+  for (let i = 0; i < rows.length; i += UPSERT_CHUNK) {
+    const chunk = rows.slice(i, i + UPSERT_CHUNK);
+
     const { error } = await supabase
-      .from("drug_library")
-      .upsert(chunk, { onConflict: "pack_barcode" });
+      .from('drug_library')
+      .upsert(chunk, { onConflict: 'pack_barcode' });
+
     if (error) throw error;
+
     count += chunk.length;
   }
+
   return count;
 }
 
-/* ===============================
+/* ======================================================
  * MAIN
- * =============================== */
+ * ====================================================== */
 async function run() {
   console.log(`🚀 Drug Master Sync START | mode=${MODE}`);
 
   const apiBase = await findLatestUddiPath();
-  console.log(`🔗 Using UDDI: ${apiBase}`);
+  console.log(`🔗 Using API: ${apiBase}`);
 
   let page = 1;
   let processed = 0;
   let upserted = 0;
-
-  const EXCLUDED_TYPES = ["일반의약품", "한약재", "의약외품"];
 
   while (true) {
     const url =
@@ -164,7 +184,7 @@ async function run() {
       `&perPage=${PER_PAGE}` +
       `&returnType=JSON`;
 
-    const payload = await fetch(url).then((r) => r.json());
+    const payload = await fetch(url).then(r => r.json());
     const rows = payload.data ?? [];
 
     if (rows.length === 0) break;
@@ -174,28 +194,26 @@ async function run() {
     for (const r of rows) {
       processed++;
 
-      if (EXCLUDED_TYPES.includes(type(r))) continue;
-      if (remark(r).includes("한약재")) continue;
-      if (cancel(r)) continue;
-      if (MODE === "daily" && !withinLastMonths(approved(r), 3)) continue;
+      if (EXCLUDED_TYPES.includes(category(r))) continue;
+      if (remark(r).includes('한약재')) continue;
+      if (canceled(r)) continue;
+
+      if (MODE === 'daily' && !isWithinLastMonths(approvedRaw(r), 3)) {
+        continue;
+      }
 
       const p = pack(r);
       const n = name(r);
       if (!p || !n) continue;
 
-      const approvalDate = parseApprovalDate(approved(r));
+      const approvalDate = parseApprovalDate(approvedRaw(r));
 
       batch.push({
         pack_barcode: p,
         base_barcode: base(r) || null,
         drug_name: n,
         unit: unit(r),
-
-        // ✅ 품목허가일자 추가
-        approval_date: approvalDate
-          ? approvalDate.toISOString()
-          : null,
-
+        approval_date: approvalDate, // null 허용
         updated_at: new Date().toISOString(),
       });
     }
@@ -205,7 +223,7 @@ async function run() {
     }
 
     console.log(
-      `[sync] page=${page} rows=${rows.length} processed=${processed} upserted=${upserted}`,
+      `[sync] page=${page} rows=${rows.length} processed=${processed} upserted=${upserted}`
     );
 
     page++;
@@ -214,7 +232,7 @@ async function run() {
   console.log(`🎉 DONE | mode=${MODE} processed=${processed} upserted=${upserted}`);
 }
 
-run().catch((e) => {
-  console.error("❌ SYNC FAILED", e);
+run().catch(err => {
+  console.error('❌ SYNC FAILED', err);
   process.exit(1);
 });
