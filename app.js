@@ -4,19 +4,34 @@ var path = require("path");
 var cookieParser = require("cookie-parser");
 var logger = require("morgan");
 
-var indexRouter = require("./routes/index");
+// Netlify Functions 환경에서 routes 경로 수정
+const routesPath = process.env.NETLIFY 
+  ? path.join(__dirname, '../../routes/index')
+  : './routes/index';
+var indexRouter = require(routesPath);
 
 var app = express();
 
 // view engine setup
-app.set("views", path.join(__dirname, "views"));
+// Netlify Functions 환경에서는 절대 경로 사용
+const viewsPath = process.env.NETLIFY 
+  ? path.join(__dirname, '../../views')  // Netlify Functions 환경
+  : path.join(__dirname, 'views');        // 로컬 환경
+
+app.set("views", viewsPath);
 app.set("view engine", "ejs");
 
 app.use(logger("dev"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, "public")));
+
+// Netlify Functions 환경에서는 public 경로도 수정
+const publicPath = process.env.NETLIFY
+  ? path.join(__dirname, '../../public')  // Netlify Functions 환경
+  : path.join(__dirname, 'public');        // 로컬 환경
+
+app.use(express.static(publicPath));
 
 app.use("/", indexRouter);
 
@@ -42,7 +57,7 @@ app.use(function (err, req, res, next) {
 const PORT = process.env.PORT || 8080;
 
 // Netlify Functions에서는 listen하지 않음
-if (process.env.NODE_ENV !== 'production') {
+if (!process.env.NETLIFY && process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
     console.log(`http://localhost:${PORT} 으로 샘플 앱이 실행되었습니다.`);
   });

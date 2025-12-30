@@ -7,6 +7,8 @@
   # Functions 디렉토리의 모든 의존성 포함
   node_bundler = "esbuild"
   external_node_modules = ["express", "ejs"]
+  # views, routes, data, public 폴더를 Functions에 포함
+  included_files = ["views/**", "routes/**", "data/**", "public/**"]
 
 [[redirects]]
   from = "/*"
