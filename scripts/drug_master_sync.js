@@ -43,18 +43,45 @@ const PER_PAGE = 200;
 const EXCLUDED_TYPES = ['일반의약품', '한약재', '의약외품'];
 
 /* =========================
- * UTIL
+ * NORMALIZE UTILS
  * ========================= */
-function normalize(v) {
+function normalizeText(v) {
+  return String(v ?? '')
+    .replace(/[\u00A0\u2000-\u200B\u3000]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeCompact(v) {
+  return normalizeText(v).replace(/\s/g, '').replace(/[()]/g, '');
+}
+
+function normalizeNumber(v) {
+  return Number(v ?? 0);
+}
+
+function normalizeDate(v) {
+  if (!v) return null;
+  try {
+    return new Date(v).toISOString().slice(0, 10); // YYYY-MM-DD
+  } catch {
+    return null;
+  }
+}
+
+function normalizeKey(v) {
   return String(v ?? '')
     .replace(/[\u00A0\u2000-\u200B\u3000]/g, '')
     .replace(/\s+/g, '')
     .trim();
 }
 
+/* =========================
+ * CSV / API FIELD ACCESS
+ * ========================= */
 function getByMeaning(row, key) {
   for (const k of Object.keys(row)) {
-    if (normalize(k) === key) return row[k];
+    if (normalizeKey(k) === key) return row[k];
   }
   return undefined;
 }
@@ -72,13 +99,13 @@ const name = r =>
   ).trim();
 
 const unit = r => Number(getByMeaning(r, '제품총수량') ?? 0) || 0;
-const category = r => normalize(getByMeaning(r, '전문일반구분'));
-const remark = r => normalize(getByMeaning(r, '비고'));
+const category = r => normalizeKey(getByMeaning(r, '전문일반구분'));
+const remark = r => normalizeText(getByMeaning(r, '비고'));
 const canceled = r => getByMeaning(r, '취소일자');
 const approvedRaw = r => String(getByMeaning(r, '품목허가일자') ?? '').trim();
 
 /* =========================
- * APPROVAL DATE PARSER
+ * APPROVAL DATE
  * ========================= */
 function parseApprovalDate(value) {
   if (!value) return null;
@@ -104,6 +131,35 @@ function isWithinLastMonths(value, months) {
   const limit = new Date();
   limit.setMonth(limit.getMonth() - months);
   return d >= limit;
+}
+
+/* =========================
+ * MEANINGFUL DIFF CHECK
+ * ========================= */
+function getMeaningfulDiff(prev, curr) {
+  const diffs = [];
+
+  if (
+    normalizeCompact(prev.drug_name) !==
+    normalizeCompact(curr.drug_name)
+  ) diffs.push('drug_name');
+
+  if (
+    normalizeCompact(prev.base_barcode) !==
+    normalizeCompact(curr.base_barcode)
+  ) diffs.push('base_barcode');
+
+  if (
+    normalizeNumber(prev.unit) !==
+    normalizeNumber(curr.unit)
+  ) diffs.push('unit');
+
+  if (
+    normalizeDate(prev.approval_date) !==
+    normalizeDate(curr.approval_date)
+  ) diffs.push('approval_date');
+
+  return diffs;
 }
 
 /* =========================
@@ -142,7 +198,7 @@ async function run() {
   console.log(`🚀 Drug Master Sync START | mode=${MODE}`);
 
   const apiBase = await findLatestUddiPath();
-  console.log(`🔗 Using API: ${apiBase}`);
+  console.log(`🔗 API: ${apiBase}`);
 
   let page = 1;
   let processed = 0;
@@ -188,14 +244,10 @@ async function run() {
       continue;
     }
 
-    /* 🔍 DB 기존 데이터 조회 */
     const { data: existing } = await supabase
       .from('drug_library')
       .select('pack_barcode, base_barcode, drug_name, unit, approval_date')
-      .in(
-        'pack_barcode',
-        incoming.map(i => i.pack_barcode)
-      );
+      .in('pack_barcode', incoming.map(i => i.pack_barcode));
 
     const map = new Map(
       (existing ?? []).map(e => [e.pack_barcode, e])
@@ -212,13 +264,10 @@ async function run() {
         continue;
       }
 
-      const changed =
-        prev.drug_name !== row.drug_name ||
-        prev.base_barcode !== row.base_barcode ||
-        Number(prev.unit) !== Number(row.unit) ||
-        String(prev.approval_date ?? '') !== String(row.approval_date ?? '');
+      const diffs = getMeaningfulDiff(prev, row);
 
-      if (changed) {
+      if (diffs.length > 0) {
+        console.log(`[DIFF] ${row.pack_barcode} → ${diffs.join(', ')}`);
         toUpdate.push({
           ...row,
           updated_at: new Date().toISOString(),
