@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>내 구독 정보 - 팜체커</title>
+  <link rel="stylesheet" href="/bulma.min.css">
+  <style>    /* 헤더 공통 스타일 */
+    .header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      z-index: 1000;
+      padding: 12px 0;
+    }
+    .header .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .logo {
+      font-size: 24px;
+      font-weight: 700;
+      color: #191f28;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .logo:hover {
+      color: #667eea;
+    }
+    .user-profile {
+      position: relative;
+    }
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 16px;
+      border-radius: 24px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .user-info:hover {
+      background-color: #f8f9fa;
+    }
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .user-name {
+      font-size: 15px;
+      font-weight: 500;
+      color: #191f28;
+    }
+    .dropdown-arrow {
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid #6b7684;
+      transition: transform 0.2s;
+    }
+    .user-info.active .dropdown-arrow {
+      transform: rotate(180deg);
+    }
+    .dropdown-menu {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      margin-top: 8px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      min-width: 200px;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-10px);
+      transition: all 0.2s;
+      z-index: 9999;
+    }
+    .dropdown-menu.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+      display: block;
+    }
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .dropdown-item:last-child {
+      border-bottom: none;
+    }
+    .dropdown-item:hover {
+      background-color: #f8f9fa;
+    }
+    .dropdown-item.logout {
+      color: #e74c3c;
+    }
+    
+    body {
+      padding-top: 70px;
+    }
+        .status-badge {
+      display: inline-block;
+      padding: 0.25em 0.75em;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.9em;
+    }
+    .status-active { background-color: #48c78e; color: white; }
+    .status-failed { background-color: #f14668; color: white; }
+    .status-restricted { background-color: #ffe08a; color: #947600; }
+    .status-suspended { background-color: #f5f5f5; color: #7a7a7a; }
+    
+    .info-card {
+      background: white;
+      border-radius: 8px;
+      padding: 2rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .info-row:last-child {
+      border-bottom: none;
+    }
+    
+    .info-label {
+      font-weight: 600;
+      color: #4a4a4a;
+    }
+    
+    .info-value {
+      color: #363636;
+    }
+    
+    .alert-box {
+      background-color: #fff5f5;
+      border: 1px solid #ff3860;
+      border-radius: 6px;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .alert-box.warning {
+      background-color: #fffbeb;
+      border-color: #ffdd57;
+    }
+    
+    .no-subscription {
+      text-align: center;
+      padding: 3rem 1.5rem;
+      background: #f8f9fa;
+      border-radius: 12px;
+      margin-top: 2rem;
+    }
+    
+    .no-subscription h2 {
+      font-size: 1.8rem;
+      color: #363636;
+      margin-bottom: 1rem;
+    }
+    
+    .no-subscription p {
+      font-size: 1.1rem;
+      color: #6b7684;
+      margin-bottom: 2rem;
+      line-height: 1.6;
+    }
+    
+    .no-subscription .icon {
+      font-size: 4rem;
+      margin-bottom: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+  <!-- 헤더 -->
+  <header class="header">
+    <div class="container">
+      <a href="/pharmchecker" class="logo">TAID SOFT</a>
+      <div class="user-profile">
+        <div class="user-info" onclick="toggleDropdown()">
+          <div class="user-avatar" id="userAvatar">
+            <span id="userInitial">U</span>
+          </div>
+          <span class="user-name" id="userName">게스트</span>
+          <div class="dropdown-arrow"></div>
+        </div>
+        <div class="dropdown-menu" id="dropdownMenu">
+          <div class="dropdown-item" onclick="window.location.href='/my-subscription'">
+            <span>📋</span>
+            <span>내 구독 정보</span>
+          </div>
+          <div class="dropdown-item" onclick="window.location.href='/payment-history'">
+            <span>💳</span>
+            <span>결제 내역</span>
+          </div>
+          <div class="dropdown-item" onclick="viewProfile()">
+            <span>👤</span>
+            <span>프로필 보기</span>
+          </div>
+          <div class="dropdown-item logout" onclick="logout()">
+            <span>🚺</span>
+            <span>로그아웃</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <section class="section">
+    <div class="container">
+      <div class="columns is-centered">
+        <div class="column is-8">
+          <h1 class="title is-3">내 구독 정보</h1>
+          
+          <!-- 구독이 없을 때 표시되는 안내 -->
+          <div id="noSubscriptionMessage" style="display: none;">
+            <div class="no-subscription">
+              <div class="icon">📋</div>
+              <h2>아직 구독이 없습니다</h2>
+              <p>
+                PharmChecker를 이용하시려면 먼저 구독을 시작해주세요.<br>
+                사용량에 따라 자동으로 최적의 플랜이 적용됩니다.
+              </p>
+              <a href="/pharmchecker" class="button is-primary is-large">
+                메인으로 돌아가기
+              </a>
+            </div>
+          </div>
+          
+          <!-- 구독 정보 컨텐츠 (기본 숨김) -->
+          <div id="subscriptionContent" style="display: none;">
+            <div id="alertContainer"></div>
+            
+            <div class="info-card">
+            <h2 class="subtitle is-5 mb-4">현재 플랜</h2>
+            <div class="info-row">
+              <span class="info-label">플랜</span>
+              <span class="info-value" id="planName">-</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">월 요금</span>
+              <span class="info-value" id="price">-</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">구독 상태</span>
+              <span id="statusBadge">-</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">이번 달 사용량</span>
+              <span class="info-value" id="usage">-</span>
+            </div>
+          </div>
+          
+          <div class="info-card">
+            <h2 class="subtitle is-5 mb-4">결제 정보</h2>
+            <div class="info-row">
+              <span class="info-label">결제수단</span>
+              <span class="info-value" id="cardInfo">-</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">현재 청구기간</span>
+              <span class="info-value" id="billingPeriod">-</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">다음 결제일</span>
+              <span class="info-value" id="nextBillingDate">-</span>
+            </div>
+          </div>
+          
+          <div class="buttons">
+            <a href="/payment-history" class="button is-info">결제 내역 보기</a>
+            <a href="/update-payment" class="button is-warning" id="updatePaymentBtn" style="display:none;">결제수단 변경</a>
+            <button class="button is-danger is-outlined" id="cancelBtn" style="display:none;">구독 해지</button>
+            <button class="button is-success" id="reactivateBtn" style="display:none;">구독 해지 취소하기</button>
+            <a href="/pharmchecker" class="button is-light">메인으로</a>
+          </div>
+          </div><!-- subscriptionContent 닫기 -->
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+      alert('로그인이 필요합니다.');
+      window.location.href = '/login';
+    }
+
+    // 헤더 사용자 정보 표시
+    const userName = localStorage.getItem('name') || '게스트';
+    document.getElementById('userName').textContent = userName;
+    document.getElementById('userInitial').textContent = userName.charAt(0).toUpperCase();
+
+    // 드롭다운 토글
+    function toggleDropdown() {
+      const dropdown = document.getElementById('dropdownMenu');
+      const userInfo = document.querySelector('.user-info');
+      dropdown.classList.toggle('active');
+      userInfo.classList.toggle('active');
+    }
+
+    // 외부 클릭 시 드롭다운 닫기
+    document.addEventListener('click', function(event) {
+      const userProfile = document.querySelector('.user-profile');
+      if (!userProfile.contains(event.target)) {
+        document.getElementById('dropdownMenu').classList.remove('active');
+        document.querySelector('.user-info').classList.remove('active');
+      }
+    });
+
+    // 로그아웃
+    function logout() {
+      if (confirm('로그아웃 하시겠습니까?')) {
+        localStorage.clear();
+        sessionStorage.clear();
+        window.location.href = '/login';
+      }
+    }
+
+    // 프로필 보기
+    function viewProfile() {
+      const userName = localStorage.getItem('name') || '게스트';
+      const userEmail = localStorage.getItem('email') || '이메일 없음';
+      const pharmacyName = localStorage.getItem('pharmacyName') || '약국명 없음';
+      alert(`프로필 정보\n\n이름: ${userName}\n이메일: ${userEmail}\n약국명: ${pharmacyName}`);
+    }
+
+    // 상태 텍스트 및 스타일 변환
+    function getStatusDisplay(status, failedAt, graceUntil, cancelAtPeriodEnd) {
+      let text, className;
+      
+      if (cancelAtPeriodEnd) {
+        text = '해지 예약됨';
+        className = 'status-suspended';
+      } else {
+        switch(status) {
+          case 'active':
+            text = '정상';
+            className = 'status-active';
+            break;
+          case 'payment_failed':
+            const daysLeft = graceUntil ? Math.ceil((new Date(graceUntil) - new Date()) / (1000 * 60 * 60 * 24)) : 0;
+            text = `결제 실패 (유예 ${daysLeft}일 남음)`;
+            className = 'status-failed';
+            break;
+          case 'restricted':
+            text = '일부 기능 제한';
+            className = 'status-restricted';
+            break;
+          case 'suspended':
+            text = '일시 중지';
+            className = 'status-suspended';
+            break;
+          default:
+            text = status;
+            className = 'status-suspended';
+        }
+      }
+      
+      return `<span class="status-badge ${className}">${text}</span>`;
+    }
+
+    // 구독 정보 로드
+    async function loadSubscription() {
+      console.log('[구독 정보] 로드 시작...');
+      try {
+        const response = await fetch(`/api/subscription/my?userId=${userId}`);
+        const data = await response.json();
+        
+        console.log('[구독 정보] API 응답:', data);
+        
+        if (!data.success) {
+          // 구독이 없을 때 안내 메시지 표시
+          console.log('[구독 정보] 구독 없음 - 안내 메시지 표시');
+          document.getElementById('subscriptionContent').style.display = 'none';
+          document.getElementById('noSubscriptionMessage').style.display = 'block';
+          return;
+        }
+        
+        // 구독 데이터가 있으면 컨텐츠 표시
+        console.log('[구독 정보] 구독 있음 - 데이터 렌더링');
+        document.getElementById('subscriptionContent').style.display = 'block';
+        document.getElementById('noSubscriptionMessage').style.display = 'none';
+        
+        const sub = data.subscription;
+        const card = data.cardInfo;
+        
+        document.getElementById('planName').textContent = sub.planName;
+        document.getElementById('price').textContent = sub.price.toLocaleString() + '원';
+        document.getElementById('statusBadge').innerHTML = getStatusDisplay(
+          sub.status, sub.failedAt, sub.graceUntil, sub.cancelAtPeriodEnd
+        );
+        document.getElementById('usage').textContent = `${sub.usage}건`;
+        
+        if (card) {
+          // 카드 회사와 마지막 4자리만 표시 (유효기간은 Toss API에서 제공 안함)
+          let cardText = `${card.company} (****${card.last4})`;
+          // 유효기간이 있는 경우에만 표시
+          if (card.expiresYear && card.expiresMonth) {
+            cardText += ` ${card.expiresYear}.${String(card.expiresMonth).padStart(2, '0')}`;
+          }
+          document.getElementById('cardInfo').textContent = cardText;
+        } else {
+          document.getElementById('cardInfo').textContent = '등록된 카드 없음';
+        }
+        
+        const periodStart = new Date(sub.currentPeriodStart).toLocaleDateString('ko-KR');
+        const periodEnd = new Date(sub.currentPeriodEnd).toLocaleDateString('ko-KR');
+        document.getElementById('billingPeriod').textContent = `${periodStart} ~ ${periodEnd}`;
+        
+        // 해지 예약된 경우 "갱신 안됨" 표시 및 버튼 전환
+        if (sub.cancelAtPeriodEnd) {
+          document.getElementById('nextBillingDate').textContent = '갱신 안됨 (해지 예정)';
+          document.getElementById('cancelBtn').style.display = 'none';
+          document.getElementById('reactivateBtn').style.display = 'inline-block';
+        } else {
+          const nextBilling = new Date(sub.currentPeriodEnd);
+          nextBilling.setDate(nextBilling.getDate() + 1);
+          document.getElementById('nextBillingDate').textContent = nextBilling.toLocaleDateString('ko-KR');
+          document.getElementById('cancelBtn').style.display = 'inline-block';
+          document.getElementById('reactivateBtn').style.display = 'none';
+        }
+        
+        // 결제 실패 시 알림 및 결제수단 변경 버튼 표시
+        const alertContainer = document.getElementById('alertContainer');
+        if (sub.status === 'payment_failed' || sub.status === 'restricted') {
+          const daysLeft = Math.ceil((new Date(sub.graceUntil) - new Date()) / (1000 * 60 * 60 * 24));
+          alertContainer.innerHTML = `
+            <div class="alert-box">
+              <strong>⚠️ 결제 실패</strong><br>
+              ${daysLeft}일 후에 서비스가 중지됩니다. 결제수단을 변경해주세요.
+            </div>
+          `;
+          document.getElementById('updatePaymentBtn').style.display = 'inline-block';
+        } else if (sub.cancelAtPeriodEnd) {
+          alertContainer.innerHTML = `
+            <div class="alert-box warning">
+              <strong>📅 구독 해지 예약</strong><br>
+              ${periodEnd}까지 서비스를 이용하실 수 있습니다.
+            </div>
+          `;
+        }
+        
+      } catch (error) {
+        console.error('구독 정보 로드 오류:', error);
+        alert('구독 정보를 불러오는 중 오류가 발생했습니다.');
+      }
+    }
+    
+    // 구독 해지
+    document.getElementById('cancelBtn').addEventListener('click', async function() {
+      if (!confirm('정말 구독을 해지하시겠습니까? 현재 청구기간이 끝날 때까지 서비스를 이용하실 수 있습니다.')) {
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/subscription/cancel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          alert(data.message);
+          location.reload();
+        } else {
+          alert(data.message);
+        }
+      } catch (error) {
+        console.error('구독 해지 오류:', error);
+        alert('구독 해지 중 오류가 발생했습니다.');
+      }
+    });
+    
+    // 구독 해지 취소
+    document.getElementById('reactivateBtn').addEventListener('click', async function() {
+      if (!confirm('구독 해지를 취소하시겠습니까? 다음 결제일에 정상적으로 결제가 진행됩니다.')) {
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/subscription/reactivate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          alert(data.message);
+          location.reload();
+        } else {
+          alert(data.message);
+        }
+      } catch (error) {
+        console.error('구독 해지 취소 오류:', error);
+        alert('구독 해지 취소 중 오류가 발생했습니다.');
+      }
+    });
+    
+    loadSubscription();
+  </script>
+</body>
+</html>

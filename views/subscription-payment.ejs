@@ -166,11 +166,13 @@
   </div>
 
   <script>
-    // 사용자 정보 및 플랜 정보 확인
-    const user = JSON.parse(sessionStorage.getItem('user') || '{}');
-    const selectedPlan = JSON.parse(sessionStorage.getItem('selectedPlan') || '{}');
+    // 사용자 정보 및 플랜 정보 확인 (localStorage 사용)
+    const userId = localStorage.getItem('userId');
+    const userName = localStorage.getItem('name');
+    const userEmail = localStorage.getItem('email');
+    const selectedPlan = JSON.parse(localStorage.getItem('selectedPlan') || '{}');
 
-    if (!user.userId || !selectedPlan.planId) {
+    if (!userId || !selectedPlan.planId) {
       alert('잘못된 접근입니다.');
       window.location.href = '/subscription/plans';
     }
@@ -182,7 +184,7 @@
 
     // 토스페이먼츠 초기화 (서버에서 .env의 TOSS_CLIENT_KEY 전달받음)
     const clientKey = '<%= tossClientKey %>';
-    const customerKey = user.userId; // 사용자 ID를 customerKey로 사용
+    const customerKey = userId; // 사용자 ID를 customerKey로 사용
 
     const tossPayments = TossPayments(clientKey);
 
@@ -199,10 +201,10 @@
         // 자동결제 카드 등록 요청
         await payment.requestBillingAuth({
           method: 'CARD', // 자동결제(빌링)는 카드만 지원
-          successUrl: window.location.origin + `/subscription/billing-success?planId=${selectedPlan.planId}&userId=${user.userId}&amount=${selectedPlan.price}`,
+          successUrl: window.location.origin + `/subscription/billing-success?planId=${selectedPlan.planId}&userId=${userId}&amount=${selectedPlan.price}`,
           failUrl: window.location.origin + '/subscription/payment-fail',
-          customerEmail: user.email,
-          customerName: user.name,
+          customerEmail: userEmail,
+          customerName: userName,
         });
 
       } catch (error) {

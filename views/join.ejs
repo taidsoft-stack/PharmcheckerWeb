@@ -314,6 +314,12 @@
             </div>
           </div>
           
+          <div class="form-group">
+            <label for="referralCode">추천인 코드 (선택)</label>
+            <input type="text" id="referralCode" name="referralCode" placeholder="영업담당자에게 받은 코드 입력" maxlength="20" style="text-transform: uppercase;">
+            <div class="helper-text">추천인 코드 입력 시 1개월 무료 혜택이 제공됩니다</div>
+          </div>
+          
           <button type="submit" class="submit-btn" id="submitBtn" disabled>회원가입 완료</button>
         </form>
         
@@ -335,7 +341,7 @@
     let userPicture = '';
     
     // 구글 로그인 응답 처리
-    function handleCredentialResponse(response) {
+    async function handleCredentialResponse(response) {
       console.log("Encoded JWT ID token: " + response.credential);
       
       try {
@@ -346,7 +352,18 @@
         userName = payload.name;
         userPicture = payload.picture || '';
         
-        // 인증 성공 표시
+        // 이메일 중복 확인 (이미 가입된 회원인지 체크)
+        const emailCheckResponse = await fetch(`/api/check-email/${encodeURIComponent(userEmail)}`);
+        const emailCheckData = await emailCheckResponse.json();
+        
+        if (emailCheckData.exists) {
+          // 이미 가입된 계정
+          alert('이미 가입하신 계정입니다.\n로그인 페이지로 이동합니다.');
+          window.location.href = '/login';
+          return;
+        }
+        
+        // 신규 회원 - 인증 성공 표시
         document.getElementById('authSuccess').classList.add('show');
         document.getElementById('step1').classList.add('completed');
         document.getElementById('step2').classList.add('active');
@@ -576,6 +593,7 @@
         postcode: document.getElementById('postcode').value,
         address: document.getElementById('address').value,
         detailAddress: document.getElementById('detailAddress').value || '',
+        referralCode: document.getElementById('referralCode').value.trim().toUpperCase() || null,
         googlePicture: userPicture
       };
       

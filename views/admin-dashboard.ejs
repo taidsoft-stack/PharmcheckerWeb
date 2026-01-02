@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PharmChecker 운영 대시보드</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { background-color: #f5f5f5; }
+    .navbar { box-shadow: 0 2px 4px rgba(0,0,0,.08); }
+    .sidebar {
+      min-height: calc(100vh - 52px);
+      background: white;
+      border-right: 1px solid #dbdbdb;
+      padding: 1.5rem 0;
+    }
+    .menu-label {
+      padding: 0 1rem;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #7a7a7a;
+    }
+    .menu-list a {
+      border-radius: 0;
+      padding: 0.75rem 1.5rem;
+    }
+    .menu-list a.is-active {
+      background-color: #3273dc;
+      color: white;
+    }
+    .stat-card {
+      background: white;
+      border-radius: 6px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,.08);
+      margin-bottom: 1.5rem;
+    }
+    .stat-number {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #3273dc;
+    }
+    .stat-label {
+      color: #7a7a7a;
+      font-size: 0.875rem;
+      margin-top: 0.5rem;
+    }
+    .content-area {
+      padding: 2rem;
+    }
+    .quick-action {
+      transition: transform 0.2s;
+    }
+    .quick-action:hover {
+      transform: translateY(-2px);
+    }
+  </style>
+</head>
+<body>
+  <!-- 상단 네비게이션 -->
+  <nav class="navbar is-white" role="navigation">
+    <div class="navbar-brand">
+      <div class="navbar-item">
+        <strong>🏥 PharmChecker 운영 대시보드</strong>
+      </div>
+    </div>
+    
+    <div class="navbar-menu">
+      <div class="navbar-end">
+        <div class="navbar-item has-dropdown is-hoverable">
+          <a class="navbar-link">
+            <i class="fas fa-user-shield"></i>
+            <span id="adminName">관리자</span>
+          </a>
+          <div class="navbar-dropdown is-right">
+            <a class="navbar-item" onclick="logout()">
+              <i class="fas fa-sign-out-alt"></i> 로그아웃
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="columns is-gapless">
+    <!-- 사이드바 -->
+    <div class="column is-2 sidebar">
+      <aside class="menu">
+        <p class="menu-label">메인</p>
+        <ul class="menu-list">
+          <li><a class="is-active" onclick="loadPage('dashboard')">
+            <i class="fas fa-home"></i> 대시보드
+          </a></li>
+        </ul>
+
+        <p class="menu-label">구독 관리</p>
+        <ul class="menu-list">
+          <li><a onclick="loadPage('users')">
+            <i class="fas fa-users"></i> 회원 관리
+          </a></li>
+          <li><a onclick="loadPage('subscriptions')">
+            <i class="fas fa-credit-card"></i> 구독 현황
+          </a></li>
+          <li><a onclick="loadPage('payments')">
+            <i class="fas fa-receipt"></i> 결제 내역
+          </a></li>
+        </ul>
+
+        <p class="menu-label">프로모션</p>
+        <ul class="menu-list">
+          <li><a onclick="loadPage('promotions')">
+            <i class="fas fa-gift"></i> 프로모션 관리
+          </a></li>
+          <li><a onclick="loadPage('referral-codes')">
+            <i class="fas fa-ticket-alt"></i> 추천인 코드
+          </a></li>
+          <li><a onclick="loadPage('assign-promotion')">
+            <i class="fas fa-user-tag"></i> 프로모션 할당
+          </a></li>
+        </ul>
+
+        <p class="menu-label">시스템</p>
+        <ul class="menu-list">
+          <li><a onclick="loadPage('plans')">
+            <i class="fas fa-layer-group"></i> 플랜 관리
+          </a></li>
+          <li><a onclick="loadPage('activity-logs')">
+            <i class="fas fa-history"></i> 활동 로그
+          </a></li>
+          <li><a onclick="loadPage('settings')">
+            <i class="fas fa-cog"></i> 설정
+          </a></li>
+        </ul>
+      </aside>
+    </div>
+
+    <!-- 메인 컨텐츠 -->
+    <div class="column content-area">
+      <div id="mainContent">
+        <!-- 대시보드 통계 -->
+        <h1 class="title">대시보드</h1>
+        
+        <div class="columns is-multiline">
+          <!-- 통계 카드들 -->
+          <div class="column is-3">
+            <div class="stat-card">
+              <div class="stat-number" id="totalUsers">-</div>
+              <div class="stat-label">전체 회원</div>
+            </div>
+          </div>
+          
+          <div class="column is-3">
+            <div class="stat-card">
+              <div class="stat-number" id="activeSubscriptions">-</div>
+              <div class="stat-label">활성 구독</div>
+            </div>
+          </div>
+          
+          <div class="column is-3">
+            <div class="stat-card">
+              <div class="stat-number" id="monthlyRevenue">-</div>
+              <div class="stat-label">이번 달 매출</div>
+            </div>
+          </div>
+          
+          <div class="column is-3">
+            <div class="stat-card">
+              <div class="stat-number" id="activePromotions">-</div>
+              <div class="stat-label">활성 프로모션</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 빠른 작업 -->
+        <h2 class="title is-4 mt-5">빠른 작업</h2>
+        <div class="columns is-multiline">
+          <div class="column is-4">
+            <div class="box quick-action" onclick="loadPage('promotions')">
+              <div class="media">
+                <div class="media-left">
+                  <span class="icon is-large has-text-info">
+                    <i class="fas fa-2x fa-gift"></i>
+                  </span>
+                </div>
+                <div class="media-content">
+                  <p class="title is-5">프로모션 생성</p>
+                  <p class="subtitle is-6">새로운 할인/무료 프로모션</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="column is-4">
+            <div class="box quick-action" onclick="loadPage('assign-promotion')">
+              <div class="media">
+                <div class="media-left">
+                  <span class="icon is-large has-text-success">
+                    <i class="fas fa-2x fa-user-tag"></i>
+                  </span>
+                </div>
+                <div class="media-content">
+                  <p class="title is-5">프로모션 할당</p>
+                  <p class="subtitle is-6">회원에게 프로모션 부여</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="column is-4">
+            <div class="box quick-action" onclick="loadPage('users')">
+              <div class="media">
+                <div class="media-left">
+                  <span class="icon is-large has-text-warning">
+                    <i class="fas fa-2x fa-users"></i>
+                  </span>
+                </div>
+                <div class="media-content">
+                  <p class="title is-5">회원 조회</p>
+                  <p class="subtitle is-6">회원 정보 및 구독 상태</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 최근 활동 -->
+        <h2 class="title is-4 mt-5">최근 활동</h2>
+        <div class="box">
+          <table class="table is-fullwidth is-hoverable">
+            <thead>
+              <tr>
+                <th>시간</th>
+                <th>활동</th>
+                <th>대상</th>
+                <th>관리자</th>
+              </tr>
+            </thead>
+            <tbody id="recentActivities">
+              <tr>
+                <td colspan="4" class="has-text-centered">로딩 중...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 로그인 확인
+    function checkAuth() {
+      const sessionToken = localStorage.getItem('admin_session_token');
+      if (!sessionToken) {
+        window.location.href = '/ops-dashboard/login';
+        return;
+      }
+      loadAdminInfo();
+    }
+
+    // 관리자 정보 로드
+    async function loadAdminInfo() {
+      try {
+        const response = await fetch('/api/admin/me', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('admin_session_token')}`
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error('인증 실패');
+        }
+        
+        const data = await response.json();
+        document.getElementById('adminName').textContent = data.admin_name;
+      } catch (error) {
+        console.error('관리자 정보 로드 실패:', error);
+        logout();
+      }
+    }
+
+    // 대시보드 통계 로드
+    async function loadDashboardStats() {
+      try {
+        const response = await fetch('/api/admin/dashboard/stats', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('admin_session_token')}`
+          }
+        });
+        
+        const stats = await response.json();
+        
+        document.getElementById('totalUsers').textContent = stats.totalUsers.toLocaleString();
+        document.getElementById('activeSubscriptions').textContent = stats.activeSubscriptions.toLocaleString();
+        document.getElementById('monthlyRevenue').textContent = `${(stats.monthlyRevenue / 10000).toFixed(0)}만원`;
+        document.getElementById('activePromotions').textContent = stats.activePromotions.toLocaleString();
+        
+      } catch (error) {
+        console.error('통계 로드 실패:', error);
+      }
+    }
+
+    // 최근 활동 로드
+    async function loadRecentActivities() {
+      try {
+        const response = await fetch('/api/admin/activities/recent', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('admin_session_token')}`
+          }
+        });
+        
+        const activities = await response.json();
+        const tbody = document.getElementById('recentActivities');
+        
+        if (activities.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4" class="has-text-centered">최근 활동이 없습니다</td></tr>';
+          return;
+        }
+        
+        tbody.innerHTML = activities.map(act => `
+          <tr>
+            <td>${new Date(act.created_at).toLocaleString('ko-KR')}</td>
+            <td><span class="tag">${act.action_type}</span></td>
+            <td>${act.target_type || '-'}</td>
+            <td>${act.admin_name}</td>
+          </tr>
+        `).join('');
+        
+      } catch (error) {
+        console.error('활동 로그 로드 실패:', error);
+      }
+    }
+
+    // 페이지 전환
+    function loadPage(page) {
+      // 메뉴 활성화 상태 변경
+      document.querySelectorAll('.menu-list a').forEach(a => a.classList.remove('is-active'));
+      event.target.closest('a').classList.add('is-active');
+      
+      // TODO: 페이지별 컨텐츠 로드
+      alert(`${page} 페이지 개발 예정`);
+    }
+
+    // 로그아웃
+    function logout() {
+      localStorage.removeItem('admin_session_token');
+      window.location.href = '/ops-dashboard/login';
+    }
+
+    // 초기화
+    checkAuth();
+    loadDashboardStats();
+    loadRecentActivities();
+  </script>
+</body>
+</html>

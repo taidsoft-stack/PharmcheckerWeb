@@ -1,0 +1,45 @@
+name: 자동결제 스케줄러
+
+on:
+  schedule:
+    # 매일 오전 1시 (KST) = 매일 오후 4시 (UTC 전날)
+    - cron: '0 16 * * *'
+  workflow_dispatch:  # 수동 실행 버튼 활성화 (테스트용)
+
+jobs:
+  recurring-billing:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+      
+      - name: Node.js 설정
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: 의존성 설치
+        run: npm ci
+      
+      - name: 자동결제 스케줄러 실행
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TOSS_SECRET_KEY: ${{ secrets.TOSS_SECRET_KEY }}
+        run: |
+          echo "=========================================="
+          echo "자동결제 스케줄러 시작: $(TZ=Asia/Seoul date)"
+          echo "=========================================="
+          node scripts/recurring_billing_scheduler.js
+          echo ""
+          echo "=========================================="
+          echo "자동결제 스케줄러 완료: $(TZ=Asia/Seoul date)"
+          echo "=========================================="
+      
+      - name: 실패 시 알림 (선택사항)
+        if: failure()
+        run: |
+          echo "❌ 자동결제 스케줄러 실행 실패!"
+          echo "GitHub Actions 로그를 확인하세요: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

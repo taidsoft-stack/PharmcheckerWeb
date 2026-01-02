@@ -320,7 +320,13 @@
         const result = await loginResponse.json();
 
         if (loginResponse.ok && result.success) {
-          // 로그인 성공 - 세션에 사용자 정보 저장
+          // 로그인 성공 - localStorage에 사용자 정보 저장 (페이지 간 유지)
+          localStorage.setItem('userId', result.data.userId);
+          localStorage.setItem('email', result.data.email);
+          localStorage.setItem('name', result.data.pharmacistName);
+          localStorage.setItem('pharmacyName', result.data.pharmacyName);
+          localStorage.setItem('picture', result.data.googlePicture || payload.picture);
+          
           sessionStorage.setItem('user', JSON.stringify({
             userId: result.data.userId,
             email: result.data.email,

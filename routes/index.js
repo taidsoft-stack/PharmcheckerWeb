@@ -55,6 +55,7 @@ router.post('/api/signup', async function (req, res) {
       postcode,
       address,
       detailAddress,
+      referralCode,
       googlePicture
     } = req.body;
 
@@ -95,6 +96,53 @@ router.post('/api/signup', async function (req, res) {
       });
     }
 
+    // 추천인 코드 검증 (선택)
+    let validPromotion = null;
+    if (referralCode) {
+      const { data: referralData, error: refError } = await supabase
+        .from('referral_codes')
+        .select(`
+          *,
+          promotion:promotion_id (*)
+        `)
+        .eq('code', referralCode)
+        .eq('is_active', true)
+        .single();
+
+      if (refError || !referralData) {
+        return res.status(400).json({
+          success: false,
+          message: '유효하지 않은 추천인 코드입니다.'
+        });
+      }
+
+      // 추가 검증
+      const now = new Date();
+      
+      // 만료 확인
+      if (referralData.expires_at && new Date(referralData.expires_at) < now) {
+        return res.status(400).json({
+          success: false,
+          message: '만료된 추천인 코드입니다.'
+        });
+      }
+
+      // 사용 횟수 확인
+      if (referralData.max_uses !== null && referralData.used_count >= referralData.max_uses) {
+        return res.status(400).json({
+          success: false,
+          message: '추천인 코드 사용 가능 횟수가 초과되었습니다.'
+        });
+      }
+
+      validPromotion = {
+        referralCodeId: referralData.referral_code_id,
+        promotionId: referralData.promotion_id
+      };
+
+      console.log('추천인 코드 검증 성공:', referralCode, '-> promotion:', validPromotion.promotionId);
+    }
+
     // UUID 생성
     const userId = uuidv4();
 
@@ -129,15 +177,35 @@ router.post('/api/signup', async function (req, res) {
       });
     }
 
+    // 추천인 코드가 유효한 경우 pending_user_promotions에 저장
+    if (validPromotion) {
+      const { error: pendingError } = await supabase
+        .from('pending_user_promotions')
+        .insert({
+          user_id: userId,
+          promotion_id: validPromotion.promotionId,
+          referral_code_id: validPromotion.referralCodeId,  // 추천인 코드 ID 저장
+          created_at: new Date().toISOString()
+        });
+
+      if (pendingError) {
+        console.error('프로모션 예약 저장 실패:', pendingError);
+        // 프로모션 저장 실패는 회원가입 실패로 처리하지 않음 (사용자 경험 고려)
+      } else {
+        console.log('프로모션 예약 완료:', userId, '->', validPromotion.promotionId, 'referral:', validPromotion.referralCodeId);
+      }
+    }
+
     // 회원가입 성공
     res.status(201).json({
       success: true,
-      message: '회원가입이 완료되었습니다.',
+      message: validPromotion ? '회원가입이 완료되었습니다. 1개월 무료 혜택이 적용됩니다!' : '회원가입이 완료되었습니다.',
       data: {
         userId: data.user_id,
         email: data.email,
         pharmacistName: data.pharmacist_name,
-        pharmacyName: data.pharmacy_name
+        pharmacyName: data.pharmacy_name,
+        hasPromotion: !!validPromotion
       }
     });
 
@@ -348,63 +416,24 @@ router.get('/api/subscription/status', async function (req, res) {
 });
 
 // 구독 취소 API
-router.post('/api/subscription/cancel', async function (req, res) {
-  try {
-    const { userId, reason } = req.body;
-
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        message: 'userId가 필요합니다.'
-      });
-    }
-
-    // 활성 구독 조회
-    const { data: subscription } = await supabase
-      .from('user_subscriptions')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('status', 'active')
-      .single();
-
-    if (!subscription) {
-      return res.status(404).json({
-        success: false,
-        message: '활성 구독을 찾을 수 없습니다.'
-      });
-    }
-
-    // 구독 상태를 'cancelled'로 변경
-    await supabase
-      .from('user_subscriptions')
-      .update({
-        status: 'cancelled',
-        cancelled_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('subscription_id', subscription.subscription_id);
-
-    // TODO: 토스페이먼츠에는 빌링키 삭제 API가 없으므로, 
-    // DB에서만 상태 변경하고 빌링키는 보관 (재구독 시 재사용 가능)
-
-    res.status(200).json({
-      success: true,
-      message: '구독이 취소되었습니다. 현재 결제 기간이 끝나면 자동결제가 중지됩니다.'
-    });
-
-  } catch (error) {
-    console.error('구독 취소 에러:', error);
-    res.status(500).json({
-      success: false,
-      message: '구독 취소에 실패했습니다.',
-      error: error.message
-    });
-  }
-});
-
 // 구독 플랜 선택 페이지
 router.get('/subscription/plans', function (req, res) {
   res.render('subscription-plans');
+});
+
+// 마이페이지
+router.get('/my-subscription', function (req, res) {
+  res.render('my-subscription');
+});
+
+// 결제 내역 페이지
+router.get('/payment-history', function (req, res) {
+  res.render('payment-history');
+});
+
+// 결제수단 변경 페이지
+router.get('/update-payment', function (req, res) {
+  res.render('update-payment');
 });
 
 // 구독 결제 페이지
@@ -456,13 +485,60 @@ router.get('/subscription/billing-success', async function (req, res) {
     // 토스 페이먼츠 API 응답 전체 로그 (카드 정보 구조 확인용)
     console.log('빌링키 발급 응답 전체:', JSON.stringify(billingData, null, 2));
     
-    // 카드사 정보 추출 (issuerCode 또는 acquirerCode 사용)
-    const cardCompany = billingData.card?.company || billingData.card?.issuerCode || null;
-    const cardLast4 = billingData.cardNumber || billingData.card?.number?.slice(-4) || null;
+    // 카드 정보 추출 (Toss API v1 구조: card 객체 내부)
+    // cardCompany는 최상위 필드에 있음 (issuerCode는 코드번호)
+    const cardCompany = billingData.cardCompany || billingData.card?.issuerCode || null;
+    const cardLast4 = (billingData.cardNumber || billingData.card?.number || '').slice(-4) || null;
+    // Toss API에는 유효기간 필드가 없음 (null 허용)
+    const expiresYear = null;
+    const expiresMonth = null;
 
-    console.log('빌링키 발급 성공:', { billingKey, cardCompany, cardLast4, cardObject: billingData.card });
+    console.log('빌링키 발급 성공:', { billingKey, cardCompany, cardLast4, expiresYear, expiresMonth });
 
-    // ===== 3단계: 빌링키로 첫 결제 승인 =====
+    // ===== 3단계: pending_user_promotions 조회 (추천인 코드 프로모션) =====
+    const { data: pendingPromotion } = await supabase
+      .from('pending_user_promotions')
+      .select(`
+        *,
+        promotion:promotion_id (*)
+      `)
+      .eq('user_id', userId)
+      .single();
+
+    let promotionId = null;
+    let promotionData = null;
+    let referralCodeId = null;
+    let finalAmount = parseInt(amount);
+
+    if (pendingPromotion && pendingPromotion.promotion) {
+      promotionData = pendingPromotion.promotion;
+      promotionId = promotionData.promotion_id;
+      referralCodeId = pendingPromotion.referral_code_id;  // pending에서 직접 가져옴 (JOIN 불필요)
+      
+      console.log('프로모션 적용:', {
+        promotionId,
+        referralCodeId,
+        promotionName: promotionData.promotion_name,
+        discountType: promotionData.discount_type,
+        freeMonths: promotionData.free_months
+      });
+
+      // 프로모션이 'free' 타입이면 금액을 0원으로 변경
+      if (promotionData.discount_type === 'free') {
+        finalAmount = 0;
+        console.log('무료 프로모션 적용: 결제 금액 0원');
+      } else if (promotionData.discount_type === 'percent' && promotionData.discount_value) {
+        finalAmount = Math.round(finalAmount * (1 - promotionData.discount_value / 100));
+        console.log(`${promotionData.discount_value}% 할인 적용: ${finalAmount}원`);
+      } else if (promotionData.discount_type === 'amount' && promotionData.discount_value) {
+        finalAmount = Math.max(0, finalAmount - promotionData.discount_value);
+        console.log(`${promotionData.discount_value}원 할인 적용: ${finalAmount}원`);
+      }
+    } else {
+      console.log('적용 가능한 프로모션 없음');
+    }
+
+    // ===== 4단계: 빌링키로 첫 결제 승인 =====
     const orderId = 'SUB_' + userId.substring(0, 8) + '_' + Date.now();
     
     // 플랜 정보 조회
@@ -472,29 +548,45 @@ router.get('/subscription/billing-success', async function (req, res) {
       .eq('plan_id', planId)
       .single();
 
-    const paymentResponse = await got.post(`https://api.tosspayments.com/v1/billing/${billingKey}`, {
-      headers: {
-        Authorization: encryptedSecretKey,
-        "Content-Type": "application/json",
-      },
-      json: {
-        customerKey: customerKey,
-        amount: parseInt(amount),
+    let payment = null;
+
+    // 💡 0원 결제는 토스 API 호출 생략 (토스는 0원 결제 미지원)
+    if (finalAmount === 0) {
+      console.log('0원 결제: 토스 API 호출 생략 (무료 프로모션 적용)');
+      payment = {
+        paymentKey: 'FREE_' + orderId,  // 가상 paymentKey
         orderId: orderId,
-        orderName: `PharmChecker ${plan.plan_name} 플랜 (첫 달)`,
-        customerEmail: '',
-        customerName: '',
-      },
-      responseType: "json",
-    });
+        amount: 0,
+        status: 'DONE'
+      };
+    } else {
+      // 일반 결제: 토스 API 호출
+      const paymentResponse = await got.post(`https://api.tosspayments.com/v1/billing/${billingKey}`, {
+        headers: {
+          Authorization: encryptedSecretKey,
+          "Content-Type": "application/json",
+        },
+        json: {
+          customerKey: customerKey,
+          amount: finalAmount,  // 프로모션 적용된 금액
+          orderId: orderId,
+          orderName: promotionData ? 
+            `PharmChecker ${plan.plan_name} 플랜 (${promotionData.promotion_name})` : 
+            `PharmChecker ${plan.plan_name} 플랜 (첫 달)`,
+          customerEmail: '',
+          customerName: '',
+        },
+        responseType: "json",
+      });
 
-    const payment = paymentResponse.body;
+      payment = paymentResponse.body;
+    }
 
-    console.log('첫 결제 승인 성공:', { paymentKey: payment.paymentKey, orderId });
+    console.log('첫 결제 승인 성공:', { paymentKey: payment.paymentKey, orderId, amount: finalAmount });
 
-    // ===== 4단계: payment_methods에 카드 정보 저장 =====
+    // ===== 5단계: payment_methods에 카드 정보 저장 =====
     const paymentMethodId = uuidv4();
-    await supabase
+    const { error: paymentMethodError } = await supabase
       .from('payment_methods')
       .insert({
         payment_method_id: paymentMethodId,
@@ -502,92 +594,314 @@ router.get('/subscription/billing-success', async function (req, res) {
         billing_key: billingKey,
         card_company: cardCompany,
         card_last4: cardLast4,
+        expires_year: expiresYear,
+        expires_month: expiresMonth,
         is_default: true,  // 첫 카드는 기본 결제수단
       });
 
-    // ===== 5단계: 구독 기간 계산 (시분초 제거, 자정~23:59:59) =====
-    const now = new Date();
-    
-    // 시작일: 오늘 자정 (00:00:00)
-    const currentPeriodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    
-    // 종료일: 다음달 같은 날짜의 23:59:59 (월말 처리 포함)
-    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate(), 23, 59, 59, 999);
-    
-    // 월말 처리: 1/31 → 2/28(29), 3/31 → 4/30 등
-    if (nextMonth.getDate() !== now.getDate()) {
-      // 다음달에 해당 날짜가 없으면 (예: 1/31 → 3/3이 되는 경우)
-      // 해당 월의 마지막 날로 설정
-      nextMonth.setDate(0); // 전달 마지막날
-      nextMonth.setHours(23, 59, 59, 999);
+    if (paymentMethodError) {
+      console.error('❌ payment_methods INSERT 실패:', paymentMethodError);
+      throw new Error(`결제수단 저장 실패: ${paymentMethodError.message}`);
     }
-    const currentPeriodEnd = nextMonth;
 
+    console.log('✅ payment_methods 저장 완료:', paymentMethodId);
+
+    // ===== 5단계: 구독 기간 계산 - 무료/유료 분리 =====
+    const now = new Date();
     const subscriptionId = uuidv4();
-
-    // ===== 6단계: user_subscriptions 테이블에 구독 생성 =====
-    await supabase
-      .from('user_subscriptions')
-      .insert({
+    
+    let subscriptionData;
+    
+    if (finalAmount === 0) {
+      // 💡 무료 프로모션: current_period는 NULL, next_billing_at만 설정
+      const freeEndDate = new Date(now);
+      freeEndDate.setMonth(freeEndDate.getMonth() + promotionData.free_months);
+      freeEndDate.setHours(23, 59, 59, 999);
+      
+      console.log(`무료 기간: ${now.toISOString()} ~ ${freeEndDate.toISOString()}`);
+      console.log(`첫 유료 결제 예정: ${freeEndDate.toISOString()}`);
+      
+      subscriptionData = {
         subscription_id: subscriptionId,
         user_id: userId,
-        entry_plan_id: planId,        // 최초 선택 플랜 (변경 안됨)
-        billing_plan_id: planId,       // 현재 결제 플랜 (사용량에 따라 변경됨)
+        entry_plan_id: planId,
+        billing_plan_id: planId,
+        promotion_id: promotionId,
+        promotion_applied_at: new Date().toISOString(),
+        promotion_expires_at: freeEndDate.toISOString(),
         status: 'active',
-        payment_method_id: paymentMethodId,  // 결제수단 참조
+        payment_method_id: paymentMethodId,
+        customer_key: customerKey,
+        current_period_start: null,     // ⚠️ 무료 기간은 결제 주기 아님
+        current_period_end: null,       // ⚠️ 무료 기간은 결제 주기 아님
+        next_billing_at: freeEndDate.toISOString(),  // 무료 종료 = 첫 유료 결제 시점
+        is_first_billing: true,
+      };
+    } else {
+      // 💰 유료 결제: 일반적인 결제 주기 설정
+      const currentPeriodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate(), 23, 59, 59, 999);
+      
+      // 월말 처리: 1/31 → 2/28(29), 3/31 → 4/30 등
+      if (nextMonth.getDate() !== now.getDate()) {
+        nextMonth.setDate(0);
+        nextMonth.setHours(23, 59, 59, 999);
+      }
+      const currentPeriodEnd = nextMonth;
+      
+      console.log(`유료 결제 주기: ${currentPeriodStart.toISOString()} ~ ${currentPeriodEnd.toISOString()}`);
+      
+      subscriptionData = {
+        subscription_id: subscriptionId,
+        user_id: userId,
+        entry_plan_id: planId,
+        billing_plan_id: planId,
+        promotion_id: promotionId || null,
+        promotion_applied_at: promotionId ? new Date().toISOString() : null,
+        promotion_expires_at: null,
+        status: 'active',
+        payment_method_id: paymentMethodId,
         customer_key: customerKey,
         current_period_start: currentPeriodStart.toISOString(),
         current_period_end: currentPeriodEnd.toISOString(),
+        next_billing_at: currentPeriodEnd.toISOString(),
         is_first_billing: true,
-      });
+      };
+    }
 
-    // ===== 7단계: 결제 기록 저장 =====
-    await supabase
-      .from('billing_payments')
-      .insert({
-        payment_id: uuidv4(),
-        subscription_id: subscriptionId,
-        user_id: userId,
-        order_id: orderId,
-        payment_key: payment.paymentKey,
-        billing_key: billingKey,
-        payment_method_id: paymentMethodId,
-        amount: parseInt(amount),
-        status: 'success',
-        requested_at: new Date().toISOString(),
-        approved_at: new Date().toISOString(),
+    // ===== 6단계: user_subscriptions 테이블에 구독 생성 =====
+    const { error: subscriptionError } = await supabase
+      .from('user_subscriptions')
+      .insert(subscriptionData);
+
+    if (subscriptionError) {
+      console.error('❌ user_subscriptions INSERT 실패:', subscriptionError);
+      throw new Error(`구독 생성 실패: ${subscriptionError.message}`);
+    }
+
+    console.log('✅ user_subscriptions 생성 완료:', subscriptionId);
+
+    // ===== 7단계: 결제 기록 저장 (0원은 free_grants, 유료는 billing_payments) =====
+    if (finalAmount === 0) {
+      // 무료 프로모션: subscription_free_grants에 저장
+      const freeEndDate = new Date(now);
+      freeEndDate.setMonth(freeEndDate.getMonth() + promotionData.free_months);
+      freeEndDate.setHours(23, 59, 59, 999);
+      
+      const { error: freeGrantError } = await supabase
+        .from('subscription_free_grants')
+        .insert({
+          free_grant_id: uuidv4(),
+          user_id: userId,
+          subscription_id: subscriptionId,
+          promotion_id: promotionId,
+          referral_code_id: referralCodeId || null,
+          free_months: promotionData.free_months,
+          granted_at: new Date().toISOString(),
+          effective_start: now.toISOString(),
+          effective_end: freeEndDate.toISOString(),
+        });
+
+      if (freeGrantError) {
+        console.error('❌ subscription_free_grants INSERT 실패:', freeGrantError);
+        throw new Error(`무료 프로모션 기록 실패: ${freeGrantError.message}`);
+      }
+
+      console.log('무료 프로모션 부여 기록 저장 완료:', {
+        userId,
+        freeMonths: promotionData.free_months,
+        effectiveStart: now.toISOString(),
+        effectiveEnd: freeEndDate.toISOString()
       });
+    } else {
+      // 유료 결제: billing_payments에 저장
+      const { error: paymentError } = await supabase
+        .from('billing_payments')
+        .insert({
+          payment_id: uuidv4(),
+          subscription_id: subscriptionId,
+          user_id: userId,
+          order_id: orderId,
+          payment_key: payment.paymentKey,
+          billing_key: billingKey,
+          payment_method_id: paymentMethodId,
+          amount: finalAmount,
+          status: 'success',
+          requested_at: new Date().toISOString(),
+          approved_at: new Date().toISOString(),
+        });
+
+      if (paymentError) {
+        console.error('❌ billing_payments INSERT 실패:', paymentError);
+        throw new Error(`결제 기록 저장 실패: ${paymentError.message}`);
+      }
+
+      console.log('유료 결제 기록 저장 완료:', { paymentKey: payment.paymentKey, amount: finalAmount });
+    }
+
+    // ===== 8단계: pending_user_promotions 삭제 & referral_codes.used_count 증가 =====
+    if (pendingPromotion && referralCodeId) {
+      // pending 삭제
+      await supabase
+        .from('pending_user_promotions')
+        .delete()
+        .eq('pending_id', pendingPromotion.pending_id);
+
+      // 추천인 코드 사용 횟수 증가 (referral_code_id 기준)
+      const { data: incrementResult } = await supabase
+        .rpc('increment_referral_code_usage', { p_referral_code_id: referralCodeId });
+
+      if (incrementResult) {
+        console.log('추천인 코드 사용 횟수 증가 성공:', referralCodeId);
+      } else {
+        console.warn('추천인 코드 사용 횟수 증가 실패 (max_uses 초과 또는 만료)');
+      }
+
+      console.log('프로모션 적용 완료 및 pending 삭제');
+    }
 
     console.log('신규 구독 생성 완료:', subscriptionId);
 
     // 성공 페이지로 리다이렉트
-    res.redirect(`/subscription/complete?planName=${encodeURIComponent(plan.plan_name)}&amount=${amount}`);
+    res.redirect(`/subscription/complete?planName=${encodeURIComponent(plan.plan_name)}&amount=${finalAmount}`);
 
   } catch (error) {
-    console.error('빌링키 발급 또는 결제 실패:', error.response?.body || error);
-    res.redirect('/subscription/payment-fail?message=' + encodeURIComponent(error.message));
+    console.error('=== 결제 처리 실패 ===');
+    console.error('에러 전체:', JSON.stringify(error.response?.body || error, null, 2));
+    console.error('에러 코드:', error.response?.body?.code);
+    console.error('에러 메시지:', error.response?.body?.message);
+    console.error('===================');
+    
+    // 토스 페이먼츠 에러 처리
+    let errorMessage = '결제 처리 중 오류가 발생했습니다.';
+    let errorCode = error.response?.body?.code || null;
+    
+    if (errorCode === 'NOT_SUPPORTED_CARD_TYPE') {
+      errorMessage = '자동결제는 신용카드만 사용 가능합니다. 체크카드는 이용하실 수 없습니다.';
+    } else if (errorCode === 'INVALID_CARD_EXPIRATION') {
+      errorMessage = '카드 유효기간이 만료되었습니다. 다른 카드를 사용해주세요.';
+    } else if (errorCode === 'INVALID_CARD_INSTALLMENT_PLAN') {
+      errorMessage = '할부 설정이 올바르지 않습니다.';
+    } else if (errorCode === 'NOT_ALLOWED_POINT_USE') {
+      errorMessage = '포인트 사용이 불가능한 카드입니다.';
+    } else if (errorCode === 'INVALID_CARD_COMPANY') {
+      errorMessage = '지원하지 않는 카드사입니다.';
+    } else if (errorCode === 'EXCEED_MAX_CARD_AMOUNT_PER_DAY') {
+      errorMessage = '일일 카드 결제 한도를 초과했습니다.';
+    } else if (errorCode === 'INVALID_PASSWORD') {
+      errorMessage = '카드 비밀번호가 올바르지 않습니다.';
+    } else if (error.code === 'SQLITE_CONSTRAINT' || error.message?.includes('duplicate key') || error.message?.includes('UNIQUE constraint')) {
+      errorMessage = '이미 등록된 카드입니다. 다른 카드를 사용해주세요.';
+      errorCode = 'DUPLICATE_BILLING_KEY';
+    } else if (error.response?.body?.message) {
+      errorMessage = error.response.body.message;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    res.redirect('/subscription/payment-fail?message=' + encodeURIComponent(errorMessage) + '&code=' + encodeURIComponent(errorCode || 'UNKNOWN'));
   }
 });
 
 // 구독 결제 실패 처리
 router.get('/subscription/payment-fail', function (req, res) {
   const message = req.query.message || '결제에 실패했습니다.';
+  const code = req.query.code || '';
+  
+  // 사용자 친화적인 아이콘 및 안내
+  let icon = '❌';
+  let title = '결제 실패';
+  let additionalInfo = '';
+  
+  if (code === 'NOT_SUPPORTED_CARD_TYPE') {
+    icon = '💳';
+    title = '카드 종류 확인 필요';
+    additionalInfo = '<p style="color: #e74c3c; font-weight: bold;">📌 자동결제는 <u>신용카드</u>만 가능합니다</p><p>체크카드, 선불카드는 사용하실 수 없습니다.</p>';
+  } else if (code === 'INVALID_CARD_EXPIRATION') {
+    icon = '📅';
+    title = '카드 유효기간 만료';
+  } else if (code === 'INVALID_PASSWORD') {
+    icon = '🔒';
+    title = '비밀번호 오류';
+  }
+  
   res.send(`
     <!DOCTYPE html>
     <html lang="ko">
     <head>
       <meta charset="UTF-8">
-      <title>결제 실패</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${title} - PharmChecker</title>
       <style>
-        body { font-family: sans-serif; text-align: center; padding: 50px; }
-        h1 { color: #e74c3c; }
-        button { padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; margin-top: 20px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+        }
+        .container {
+          background: white;
+          border-radius: 20px;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+          max-width: 500px;
+          width: 100%;
+          padding: 40px;
+          text-align: center;
+        }
+        .icon { font-size: 80px; margin-bottom: 20px; }
+        h1 { 
+          color: #2c3e50; 
+          font-size: 24px; 
+          margin-bottom: 15px;
+        }
+        .message {
+          color: #555;
+          font-size: 16px;
+          line-height: 1.6;
+          margin-bottom: 20px;
+          padding: 20px;
+          background: #f8f9fa;
+          border-radius: 12px;
+          border-left: 4px solid #e74c3c;
+        }
+        .additional-info {
+          margin-bottom: 20px;
+          line-height: 1.8;
+        }
+        button {
+          padding: 14px 32px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          border: none;
+          border-radius: 12px;
+          cursor: pointer;
+          font-size: 16px;
+          font-weight: 600;
+          transition: transform 0.2s;
+        }
+        button:hover {
+          transform: translateY(-2px);
+        }
+        .help-text {
+          margin-top: 20px;
+          font-size: 14px;
+          color: #7f8c8d;
+        }
       </style>
     </head>
     <body>
-      <h1>❌ 결제 실패</h1>
-      <p>${message}</p>
-      <button onclick="window.location.href='/subscription/plans'">플랜 다시 선택하기</button>
+      <div class="container">
+        <div class="icon">${icon}</div>
+        <h1>${title}</h1>
+        <div class="message">${message}</div>
+        ${additionalInfo ? `<div class="additional-info">${additionalInfo}</div>` : ''}
+        <button onclick="window.location.href='/subscription/plans'">플랜 다시 선택하기</button>
+        <p class="help-text">문제가 계속되면 고객센터로 문의해주세요.</p>
+      </div>
     </body>
     </html>
   `);
@@ -873,6 +1187,366 @@ router.post('/api/subscription/recurring-payment', async function (req, res) {
       error: error.message,
       graceUntil: req.body.userId ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() : null
     });
+  }
+});
+
+// 결제수단 변경 성공 콜백 (authKey 받기)
+router.get('/api/subscription/update-payment-success', async function (req, res) {
+  const { authKey, customerKey } = req.query;
+  
+  if (!authKey || !customerKey) {
+    return res.redirect('/update-payment?error=missing_params');
+  }
+
+  try {
+    // authKey를 사용하여 결제수단 업데이트 처리
+    const response = await fetch('/api/subscription/update-payment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: customerKey,
+        authKey: authKey
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      res.redirect('/purchase-complete?message=' + encodeURIComponent('결제수단이 변경되고 재결제가 완료되었습니다.'));
+    } else {
+      res.redirect('/update-payment?error=' + encodeURIComponent(data.message));
+    }
+  } catch (error) {
+    console.error('결제수단 변경 처리 오류:', error);
+    res.redirect('/update-payment?error=processing_failed');
+  }
+});
+
+// 내 구독 정보 조회
+router.get('/api/subscription/my', async function (req, res) {
+  try {
+    const userId = req.query.userId;
+    if (!userId) {
+      return res.status(400).json({ success: false, message: '사용자 ID가 필요합니다.' });
+    }
+
+    // 구독 정보 조회
+    const { data: subscription, error: subError } = await supabase
+      .from('user_subscriptions')
+      .select('*, subscription_plans!user_subscriptions_billing_plan_id_fkey(plan_name, monthly_price)')
+      .eq('user_id', userId)
+      .single();
+
+    if (subError || !subscription) {
+      console.error('구독 정보 조회 실패:', subError);
+      return res.json({ success: false, message: '구독 정보를 찾을 수 없습니다.' });
+    }
+
+    // 카드 정보 조회
+    let cardInfo = null;
+    if (subscription.payment_method_id) {
+      const { data: paymentMethod } = await supabase
+        .from('payment_methods')
+        .select('*')
+        .eq('payment_method_id', subscription.payment_method_id)
+        .single();
+      
+      if (paymentMethod) {
+        cardInfo = {
+          company: paymentMethod.card_company,
+          last4: paymentMethod.card_last4,
+          expiresYear: paymentMethod.expires_year,
+          expiresMonth: paymentMethod.expires_month
+        };
+      }
+    }
+
+    // 현재 청구기간 사용량 조회 (유료 기간만)
+    let usageStats = null;
+    if (subscription.current_period_start) {
+      const { data: stats } = await supabase
+        .from('usage_billing_period_stats')
+        .select('*')
+        .eq('subscription_id', subscription.subscription_id)
+        .eq('period_start', subscription.current_period_start)
+        .single();
+      usageStats = stats;
+    }
+
+    // 무료 기간 여부 판단
+    const isFreeTrialActive = subscription.current_period_start === null;
+
+    res.json({
+      success: true,
+      subscription: {
+        planName: subscription.subscription_plans.plan_name,
+        price: subscription.subscription_plans.monthly_price,
+        status: subscription.status,
+        isFreeTrialActive: isFreeTrialActive,  // 무료 기간 중인지
+        currentPeriodStart: subscription.current_period_start,
+        currentPeriodEnd: subscription.current_period_end,
+        nextBillingAt: subscription.next_billing_at,  // 다음 결제일
+        cancelAtPeriodEnd: subscription.cancel_at_period_end,
+        failedAt: subscription.failed_at,
+        graceUntil: subscription.grace_until,
+        usage: usageStats?.total_rx_count || 0
+      },
+      cardInfo
+    });
+  } catch (error) {
+    console.error('구독 정보 조회 오류:', error);
+    res.status(500).json({ success: false, message: '구독 정보 조회 중 오류가 발생했습니다.' });
+  }
+});
+
+// 결제 내역 조회
+router.get('/api/subscription/payment-history', async function (req, res) {
+  try {
+    const userId = req.query.userId;
+    if (!userId) {
+      return res.status(400).json({ success: false, message: '사용자 ID가 필요합니다.' });
+    }
+
+    const { data: payments, error } = await supabase
+      .from('billing_payments')
+      .select('*, user_subscriptions(subscription_plans!user_subscriptions_billing_plan_id_fkey(plan_name))')
+      .eq('user_id', userId)
+      .order('requested_at', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      success: true,
+      payments: payments.map(p => ({
+        orderId: p.order_id,
+        planName: p.user_subscriptions?.subscription_plans?.plan_name || '알 수 없음',
+        amount: p.amount,
+        status: p.status,
+        requestedAt: p.requested_at,
+        failReason: p.fail_reason
+      }))
+    });
+  } catch (error) {
+    console.error('결제 내역 조회 오류:', error);
+    res.status(500).json({ success: false, message: '결제 내역 조회 중 오류가 발생했습니다.' });
+  }
+});
+
+// 카드 변경 (재결제)
+router.post('/api/subscription/update-payment', async function (req, res) {
+  try {
+    const { userId, authKey } = req.body;
+    if (!userId || !authKey) {
+      return res.status(400).json({ success: false, message: '필수 정보가 누락되었습니다.' });
+    }
+
+    // 구독 정보 조회
+    const { data: subscription } = await supabase
+      .from('user_subscriptions')
+      .select('*, subscription_plans!user_subscriptions_billing_plan_id_fkey(*)')
+      .eq('user_id', userId)
+      .single();
+
+    if (!subscription) {
+      return res.status(404).json({ success: false, message: '구독 정보를 찾을 수 없습니다.' });
+    }
+
+    // 기존 payment_method 비활성화
+    if (subscription.payment_method_id) {
+      await supabase
+        .from('payment_methods')
+        .update({ disabled_at: new Date().toISOString() })
+        .eq('payment_method_id', subscription.payment_method_id);
+    }
+
+    // authKey로 billingKey 발급
+    const billingResponse = await got.post(
+      `https://api.tosspayments.com/v1/billing/authorizations/${authKey}`,
+      {
+        headers: {
+          Authorization: `Basic ${Buffer.from(process.env.TOSS_SECRET_KEY + ':').toString('base64')}`,
+          'Content-Type': 'application/json',
+        },
+        json: { customerKey: userId },
+        responseType: 'json',
+      }
+    );
+
+    const billingData = billingResponse.body;
+
+    // 카드 정보 추출 (첫 결제와 동일한 구조)
+    const cardCompany = billingData.cardCompany || billingData.card?.issuerCode || null;
+    const cardLast4 = (billingData.cardNumber || billingData.card?.number || '').slice(-4) || null;
+
+    // 새 payment_method 저장
+    const { data: newPaymentMethod } = await supabase
+      .from('payment_methods')
+      .insert({
+        payment_method_id: uuidv4(),
+        user_id: userId,
+        billing_key: billingData.billingKey,
+        card_company: cardCompany,
+        card_last4: cardLast4,
+        expires_year: null,
+        expires_month: null,
+        is_default: true,
+      })
+      .select()
+      .single();
+
+    // 즉시 재결제 시도
+    const orderId = `RETRY_${Date.now()}_${userId.substring(0, 8)}`;
+    const paymentResponse = await got.post(
+      'https://api.tosspayments.com/v1/billing/' + billingData.billingKey,
+      {
+        headers: {
+          Authorization: `Basic ${Buffer.from(process.env.TOSS_SECRET_KEY + ':').toString('base64')}`,
+          'Content-Type': 'application/json',
+        },
+        json: {
+          customerKey: userId,
+          amount: subscription.subscription_plans.price,
+          orderId: orderId,
+          orderName: `${subscription.subscription_plans.plan_name} 플랜 재결제`,
+        },
+        responseType: 'json',
+      }
+    );
+
+    const paymentData = paymentResponse.body;
+
+    // 구독 상태 업데이트
+    await supabase
+      .from('user_subscriptions')
+      .update({
+        payment_method_id: newPaymentMethod.payment_method_id,
+        status: 'active',
+        failed_at: null,
+        grace_until: null,
+      })
+      .eq('subscription_id', subscription.subscription_id);
+
+    // 결제 기록 저장
+    await supabase.from('billing_payments').insert({
+      payment_id: uuidv4(),
+      subscription_id: subscription.subscription_id,
+      user_id: userId,
+      order_id: orderId,
+      billing_key: billingData.billingKey,
+      payment_method_id: newPaymentMethod.payment_method_id,
+      amount: subscription.subscription_plans.price,
+      status: 'completed',
+      toss_payment_key: paymentData.paymentKey,
+      requested_at: new Date().toISOString(),
+    });
+
+    res.json({
+      success: true,
+      message: '결제수단이 변경되고 재결제가 완료되었습니다.',
+      payment: paymentData,
+    });
+  } catch (error) {
+    console.error('결제수단 변경 오류:', error);
+    res.status(500).json({
+      success: false,
+      message: '결제수단 변경에 실패했습니다.',
+      error: error.response?.body?.message || error.message,
+    });
+  }
+});
+
+// 구독 해지
+router.post('/api/subscription/cancel', async function (req, res) {
+  try {
+    const { userId } = req.body;
+    if (!userId) {
+      return res.status(400).json({ success: false, message: '사용자 ID가 필요합니다.' });
+    }
+
+    const { data: subscription } = await supabase
+      .from('user_subscriptions')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (!subscription) {
+      return res.status(404).json({ success: false, message: '구독 정보를 찾을 수 없습니다.' });
+    }
+
+    // 즉시 해지가 아닌 다음 결제일에 해지
+    const { error: updateError } = await supabase
+      .from('user_subscriptions')
+      .update({ 
+        cancel_at_period_end: true,
+        updated_at: new Date().toISOString()
+      })
+      .eq('subscription_id', subscription.subscription_id);
+
+    if (updateError) {
+      console.error('구독 해지 업데이트 실패:', updateError);
+      return res.status(500).json({ success: false, message: 'DB 업데이트 중 오류가 발생했습니다.' });
+    }
+
+    console.log(`구독 해지 예약 완료: ${userId}, subscription_id: ${subscription.subscription_id}`);
+
+    res.json({
+      success: true,
+      message: '구독 해지가 예약되었습니다. 현재 결제 기간 종료일까지 서비스를 이용하실 수 있습니다.',
+      cancelDate: subscription.current_period_end,
+    });
+  } catch (error) {
+    console.error('구독 해지 오류:', error);
+    res.status(500).json({ success: false, message: '구독 해지 중 오류가 발생했습니다.' });
+  }
+});
+
+// 구독 해지 취소
+router.post('/api/subscription/reactivate', async function (req, res) {
+  try {
+    const { userId } = req.body;
+    if (!userId) {
+      return res.status(400).json({ success: false, message: '사용자 ID가 필요합니다.' });
+    }
+
+    const { data: subscription } = await supabase
+      .from('user_subscriptions')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (!subscription) {
+      return res.status(404).json({ success: false, message: '구독 정보를 찾을 수 없습니다.' });
+    }
+
+    if (!subscription.cancel_at_period_end) {
+      return res.status(400).json({ success: false, message: '해지 예약된 구독이 아닙니다.' });
+    }
+
+    // 해지 취소: cancel_at_period_end를 false로 변경
+    const { error: updateError } = await supabase
+      .from('user_subscriptions')
+      .update({ 
+        cancel_at_period_end: false,
+        updated_at: new Date().toISOString()
+      })
+      .eq('subscription_id', subscription.subscription_id);
+
+    if (updateError) {
+      console.error('구독 해지 취소 실패:', updateError);
+      return res.status(500).json({ success: false, message: 'DB 업데이트 중 오류가 발생했습니다.' });
+    }
+
+    console.log(`구독 해지 취소 완료: ${userId}, subscription_id: ${subscription.subscription_id}`);
+
+    res.json({
+      success: true,
+      message: '구독 해지가 취소되었습니다. 다음 결제일에 정상적으로 결제가 진행됩니다.',
+    });
+  } catch (error) {
+    console.error('구독 해지 취소 오류:', error);
+    res.status(500).json({ success: false, message: '구독 해지 취소 중 오류가 발생했습니다.' });
   }
 });
 

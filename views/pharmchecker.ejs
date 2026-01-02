@@ -116,12 +116,14 @@
       visibility: hidden;
       transform: translateY(-10px);
       transition: all 0.3s ease;
+      z-index: 9999;
     }
 
     .dropdown-menu.active {
       opacity: 1;
       visibility: visible;
       transform: translateY(0);
+      display: block;
     }
 
     .dropdown-item {
@@ -562,10 +564,9 @@
   <!-- 헤더 -->
   <header class="header">
     <div class="container">
-      <div class="logo">
-        <span>💊</span>
-        <span>PharmChecker</span>
-      </div>
+      <a href="/pharmchecker" class="logo" style="text-decoration: none;">
+        <span>TAID SOFT</span>
+      </a>
       <div class="user-profile">
         <div class="user-info" onclick="toggleDropdown()">
           <div class="user-avatar" id="userAvatar">
@@ -575,6 +576,14 @@
           <div class="dropdown-arrow"></div>
         </div>
         <div class="dropdown-menu" id="dropdownMenu">
+          <div class="dropdown-item" onclick="window.location.href='/my-subscription'">
+            <span class="dropdown-item-icon">📋</span>
+            <span class="dropdown-item-text">내 구독 정보</span>
+          </div>
+          <div class="dropdown-item" onclick="window.location.href='/payment-history'">
+            <span class="dropdown-item-icon">💳</span>
+            <span class="dropdown-item-text">결제 내역</span>
+          </div>
           <div class="dropdown-item" onclick="viewProfile()">
             <span class="dropdown-item-icon">👤</span>
             <span class="dropdown-item-text">프로필 보기</span>
@@ -594,9 +603,10 @@
       <h1>PharmChecker<br>바코드 기반 약품 조제 안전 지원 시스템</h1>
       <p>유사한 약품명, 혼동하기 쉬운 용량 표기<br>실수가 발생하기 쉬운 약국 조제 업무를 위한 신뢰할 수 있는 확인 도우미</p>
       <div class="button-group">
-        <a href="/subscription/plans" class="button button-primary">구독 플랜 선택하기</a>
+        <button class="button button-primary" id="subscribePlanBtn" onclick="goToSubscriptionPlans()" style="opacity: 0.5; cursor: wait;">로딩 중...</button>
         <a href="#how-it-works" class="button button-secondary">작동 방식</a>
       </div>
+      <p id="subscriptionStatus" style="margin-top: 1rem; font-size: 0.95rem; color: #48c78e; display: none;"></p>
     </div>
   </section>
 
@@ -720,37 +730,30 @@
   <script>
     // 페이지 로드 시 사용자 정보 표시
     window.addEventListener('DOMContentLoaded', function() {
-      const userDataStr = sessionStorage.getItem('user');
+      const userId = localStorage.getItem('userId');
+      const userName = localStorage.getItem('name');
+      const userEmail = localStorage.getItem('email');
+      const userPicture = localStorage.getItem('picture');
       
-      if (!userDataStr) {
+      if (!userId) {
         // 로그인하지 않은 경우 로그인 페이지로 리다이렉트
         window.location.href = '/login';
         return;
       }
       
-      try {
-        const userData = JSON.parse(userDataStr);
-        const userName = userData.name || '게스트';
-        const userEmail = userData.email || '';
-        const userPicture = userData.picture || '';
-        
-        // 사용자 이름 표시
-        document.getElementById('userName').textContent = userName + '님';
-        
-        // 프로필 사진이 있으면 표시, 없으면 이니셜 표시
-        if (userPicture) {
-          document.getElementById('userAvatar').innerHTML = `<img src="${userPicture}" alt="프로필">`;
-        } else {
-          // 이름의 첫 글자를 이니셜로 사용
-          const initial = userName.charAt(0).toUpperCase();
-          document.getElementById('userInitial').textContent = initial;
-        }
-        
-        console.log('로그인 사용자:', userData);
-      } catch (error) {
-        console.error('사용자 정보 파싱 오류:', error);
-        window.location.href = '/login';
+      // 사용자 이름 표시
+      document.getElementById('userName').textContent = (userName || '게스트') + '님';
+      
+      // 프로필 사진이 있으면 표시, 없으면 이니셜 표시
+      if (userPicture) {
+        document.getElementById('userAvatar').innerHTML = `<img src="${userPicture}" alt="프로필">`;
+      } else {
+        // 이름의 첫 글자를 이니셜로 사용
+        const initial = (userName || 'G').charAt(0).toUpperCase();
+        document.getElementById('userInitial').textContent = initial;
       }
+      
+      console.log('로그인 사용자:', { userId, userName, userEmail });
     });
     
     // 드롭다운 토글
@@ -776,18 +779,98 @@
     
     // 프로필 보기
     function viewProfile() {
-      const userDataStr = sessionStorage.getItem('user');
-      if (userDataStr) {
-        const userData = JSON.parse(userDataStr);
-        alert(`프로필 정보\n\n이름: ${userData.name}\n이메일: ${userData.email}`);
+      const userName = localStorage.getItem('name');
+      const userEmail = localStorage.getItem('email');
+      const pharmacyName = localStorage.getItem('pharmacy_name');
+      
+      if (userName) {
+        let profileInfo = `프로필 정보\n\n이름: ${userName}\n이메일: ${userEmail}`;
+        if (pharmacyName) {
+          profileInfo += `\n약국명: ${pharmacyName}`;
+        }
+        alert(profileInfo);
       }
     }
     
     // 로그아웃
     function logout() {
       if (confirm('로그아웃 하시겠습니까?')) {
-        sessionStorage.removeItem('user');
+        localStorage.clear();
         window.location.href = '/login';
+      }
+    }
+    
+    // 구독 상태 확인 및 버튼 비활성화
+    async function checkSubscriptionStatus() {
+      const userId = localStorage.getItem('userId');
+      const btn = document.getElementById('subscribePlanBtn');
+      const statusText = document.getElementById('subscriptionStatus');
+      
+      if (!userId) {
+        // 로그인 안된 경우
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+        btn.textContent = '구독 플랜 선택하기';
+        return;
+      }
+      
+      try {
+        const response = await fetch(`/api/subscription/my?userId=${userId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+          // 이미 구독 중인 경우 버튼 비활성화
+          btn.style.opacity = '0.5';
+          btn.style.cursor = 'not-allowed';
+          btn.style.pointerEvents = 'none';
+          btn.textContent = '구독 중';
+          
+          statusText.textContent = `✓ ${data.subscription.planName} 플랜을 사용 중입니다`;
+          statusText.style.display = 'block';
+        } else {
+          // 구독 없는 경우
+          btn.style.opacity = '1';
+          btn.style.cursor = 'pointer';
+          btn.style.pointerEvents = 'auto';
+          btn.textContent = '구독 플랜 선택하기';
+        }
+      } catch (error) {
+        console.log('구독 상태 확인 중 오류 (구독 없음):', error);
+        // 오류 시에도 버튼 활성화
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+        btn.style.pointerEvents = 'auto';
+        btn.textContent = '구독 플랜 선택하기';
+      }
+    }
+    
+    // 페이지 로드 시 구독 상태 확인
+    checkSubscriptionStatus();
+    
+    // 구독 플랜 선택 페이지로 이동 (구독 중이면 내 구독 정보로 이동)
+    async function goToSubscriptionPlans() {
+      const userId = localStorage.getItem('userId');
+      if (!userId) {
+        alert('로그인이 필요합니다.');
+        window.location.href = '/login';
+        return;
+      }
+      
+      try {
+        const response = await fetch(`/api/subscription/my?userId=${userId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+          // 이미 구독 중
+          alert('이미 구독 중입니다. 내 구독 정보 페이지로 이동합니다.');
+          window.location.href = '/my-subscription';
+        } else {
+          // 구독 없음 - 플랜 선택 페이지로
+          window.location.href = '/subscription/plans';
+        }
+      } catch (error) {
+        // 구독 없음 (404 등)
+        window.location.href = '/subscription/plans';
       }
     }
     

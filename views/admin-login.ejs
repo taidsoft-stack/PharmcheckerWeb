@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>관리자 로그인 - PharmChecker</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <style>
+    html, body {
+      height: 100%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .login-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .login-box {
+      background: white;
+      border-radius: 8px;
+      padding: 3rem;
+      box-shadow: 0 20px 60px rgba(0,0,0,.3);
+      width: 100%;
+      max-width: 400px;
+    }
+    .login-title {
+      text-align: center;
+      margin-bottom: 2rem;
+      color: #363636;
+    }
+    .login-icon {
+      font-size: 3rem;
+      color: #667eea;
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-box">
+      <div style="text-align: center;">
+        <div class="login-icon">🔐</div>
+        <h1 class="login-title title is-4">PharmChecker 운영 대시보드</h1>
+      </div>
+
+      <form id="loginForm">
+        <div class="field">
+          <label class="label">이메일</label>
+          <div class="control has-icons-left">
+            <input class="input" type="email" id="email" placeholder="admin@pharmchecker.com" required>
+            <span class="icon is-small is-left">
+              <i class="fas fa-envelope"></i>
+            </span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label">비밀번호</label>
+          <div class="control has-icons-left">
+            <input class="input" type="password" id="password" placeholder="********" required>
+            <span class="icon is-small is-left">
+              <i class="fas fa-lock"></i>
+            </span>
+          </div>
+        </div>
+
+        <div id="errorMessage" class="notification is-danger is-light" style="display: none;">
+          <button class="delete" onclick="hideError()"></button>
+          <span id="errorText"></span>
+        </div>
+
+        <div class="field">
+          <div class="control">
+            <button type="submit" class="button is-primary is-fullwidth" id="loginBtn">
+              로그인
+            </button>
+          </div>
+        </div>
+      </form>
+
+      <hr>
+      
+      <div class="has-text-centered">
+        <p class="is-size-7 has-text-grey">
+          <strong>초기 계정:</strong> admin@pharmchecker.com<br>
+          <strong>초기 비밀번호:</strong> Admin123!<br>
+          <span class="has-text-danger">⚠️ 최초 로그인 후 비밀번호 변경 필수</span>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const loginBtn = document.getElementById('loginBtn');
+      
+      loginBtn.classList.add('is-loading');
+      hideError();
+      
+      try {
+        const response = await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.message || '로그인 실패');
+        }
+        
+        // 세션 토큰 저장
+        localStorage.setItem('admin_session_token', data.session_token);
+        
+        // 대시보드로 이동
+        window.location.href = '/ops-dashboard';
+        
+      } catch (error) {
+        showError(error.message);
+        loginBtn.classList.remove('is-loading');
+      }
+    });
+    
+    function showError(message) {
+      document.getElementById('errorText').textContent = message;
+      document.getElementById('errorMessage').style.display = 'block';
+    }
+    
+    function hideError() {
+      document.getElementById('errorMessage').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
