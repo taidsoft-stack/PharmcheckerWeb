@@ -240,9 +240,13 @@ async function executeRecurringPayment(subscription, paymentMethod, plan, userId
  * current_period_start IS NULL AND next_billing_at <= NOW()
  */
 async function handleFreeTrialExpiration() {
-  console.log('\n----- 무료 기간 종료 처리 -----');
+  console.log('\n========================================');
+  console.log('1단계: 무료 기간 종료 처리 시작');
+  console.log('========================================');
   
   const now = new Date();
+  console.log('현재 시각(UTC):', now.toISOString());
+  console.log('현재 시각(KST):', new Date(now.getTime() + 9*60*60*1000).toISOString().replace('Z', '+09:00'));
   
   try {
     // 1. 무료 기간이 종료된 구독 조회
@@ -259,19 +263,23 @@ async function handleFreeTrialExpiration() {
     }
     
     if (!freeExpiredSubs || freeExpiredSubs.length === 0) {
-      console.log('무료 종료 구독 없음');
+      console.log('✅ 처리할 무료 종료 구독 없음');
+      console.log('========================================\n');
       return;
     }
     
-    console.log(`무료 종료 대상: ${freeExpiredSubs.length}건`);
+    console.log(`\n📋 무료 종료 대상: ${freeExpiredSubs.length}건`);
+    console.log('----------------------------------------');
     
     let successCount = 0;
     let failCount = 0;
     
     for (const sub of freeExpiredSubs) {
       try {
-        console.log(`\n무료 → 유료 전환: ${sub.user_id}`);
+        console.log(`\n[${successCount + failCount + 1}/${freeExpiredSubs.length}] 무료 → 유료 전환 시도`);
+        console.log(`  User ID: ${sub.user_id}`);
         console.log(`  무료 종료 시각: ${sub.next_billing_at}`);
+        console.log(`  프로모션 ID: ${sub.promotion_id || 'N/A'}`);
         
         // 2. 플랜 정보 조회
         const { data: plan } = await supabase
@@ -339,8 +347,10 @@ async function handleFreeTrialExpiration() {
             })
             .eq('subscription_id', sub.subscription_id);
           
-          console.log(`✅ 첫 유료 결제 성공: ${paymentResult.amount}원`);
-          console.log(`   유료 주기: ${firstPaidStart.toISOString()} ~ ${firstPaidEnd.toISOString()}`);
+          console.log(`✅ 첫 유료 결제 성공!`);
+          console.log(`   결제 금액: ${paymentResult.amount.toLocaleString()}원`);
+          console.log(`   유료 주기: ${firstPaidStart.toISOString().split('T')[0]} ~ ${firstPaidEnd.toISOString().split('T')[0]}`);
+          console.log(`   결제키: ${paymentResult.payment.paymentKey.substring(0, 20)}...`);
           successCount++;
           
         } else {
@@ -387,7 +397,9 @@ async function handleFreeTrialExpiration() {
       }
     }
     
-    console.log(`\n무료 → 유료 전환 완료: 성공 ${successCount}건 / 실패 ${failCount}건`);
+    console.log('\n========================================');
+    console.log(`1단계 완료: 성공 ${successCount}건 / 실패 ${failCount}건`);
+    console.log('========================================\n');
     
   } catch (error) {
     console.error('무료 종료 처리 오류:', error);
@@ -398,9 +410,12 @@ async function handleFreeTrialExpiration() {
  * 유예가간 만료 처리 (payment_failed → restricted → suspended)
  */
 async function handleExpiredGracePeriods() {
-  console.log('\n----- 유예기간 만료 처리 -----');
+  console.log('\n========================================');
+  console.log('2단계: 유예기간 만료 처리 시작');
+  console.log('========================================');
   
   const now = new Date();
+  console.log('현재 시각:', now.toISOString());
   
   try {
     // 1. payment_failed 상태에서 유예기간 만료된 구독 조회
@@ -411,11 +426,13 @@ async function handleExpiredGracePeriods() {
       .lt('grace_until', now.toISOString());
     
     if (!expiredSubscriptions || expiredSubscriptions.length === 0) {
-      console.log('유예기간 만료된 구독 없음');
+      console.log('✅ 유예기간 만료된 구독 없음');
+      console.log('========================================\n');
       return;
     }
     
-    console.log(`유예기간 만료: ${expiredSubscriptions.length}건`);
+    console.log(`\n📋 유예기간 만료: ${expiredSubscriptions.length}건`);
+    console.log('payment_failed → restricted 전환 중...');
     
     // 2. payment_failed → restricted (핵심 기능 제한)
     for (const sub of expiredSubscriptions) {
@@ -427,10 +444,13 @@ async function handleExpiredGracePeriods() {
         })
         .eq('subscription_id', sub.subscription_id);
       
-      console.log(`  ${sub.user_id}: payment_failed → restricted`);
+      console.log(`  ✓ ${sub.user_id}: payment_failed → restricted`);
     }
     
+    console.log(`\n✅ restricted 전환 완료: ${expiredSubscriptions.length}건`);
+    
     // 3. restricted → suspended (일자 기준 7일 경과 시)
+    console.log('\nrestricted → suspended 전환 확인 중...');
     // grace_until 기준: grace_until + 7일 후 23:59:59 경과 시
     const { data: restrictedSubscriptions } = await supabase
       .from('user_subscriptions')
@@ -451,7 +471,7 @@ async function handleExpiredGracePeriods() {
       });
       
       if (toSuspend.length > 0) {
-        console.log(`\nrestricted → suspended: ${toSuspend.length}건`);
+        console.log(`\n📋 suspended 전환 대상: ${toSuspend.length}건`);
         
         for (const sub of toSuspend) {
           await supabase
@@ -462,13 +482,20 @@ async function handleExpiredGracePeriods() {
             })
             .eq('subscription_id', sub.subscription_id);
           
-          console.log(`  ${sub.user_id}: restricted → suspended`);
+          console.log(`  ✓ ${sub.user_id}: restricted → suspended`);
         }
+        console.log(`\n✅ suspended 전환 완료: ${toSuspend.length}건`);
+      } else {
+        console.log('✅ suspended 전환 대상 없음');
       }
     }
     
+    console.log('\n========================================');
+    console.log('2단계 완료');
+    console.log('========================================\n');
+    
   } catch (error) {
-    console.error('유예기간 처리 오류:', error);
+    console.error('❌ 유예기간 처리 오류:', error);
   }
 }
 
@@ -477,11 +504,14 @@ async function handleExpiredGracePeriods() {
  * cancel_at_period_end = true이고 current_period_end가 지난 구독을 종료
  */
 async function handleCancelledSubscriptions() {
-  console.log('\n===== 해지 예약 구독 처리 =====');
+  console.log('\n========================================');
+  console.log('3단계: 해지 예약 구독 처리 시작');
+  console.log('========================================');
   
   try {
     const today = new Date();
     const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1, 23, 59, 59, 999);
+    console.log('기준 종료일:', yesterday.toISOString());
     
     // 해지 예약되고 청구기간이 종료된 구독 조회
     const { data: cancelledSubs, error } = await supabase
@@ -496,16 +526,19 @@ async function handleCancelledSubscriptions() {
     }
     
     if (!cancelledSubs || cancelledSubs.length === 0) {
-      console.log('해지 처리할 구독 없음');
+      console.log('✅ 해지 처리할 구독 없음');
+      console.log('========================================\n');
       return;
     }
     
-    console.log(`해지 처리 대상: ${cancelledSubs.length}건`);
+    console.log(`\n📋 해지 처리 대상: ${cancelledSubs.length}건`);
+    console.log('----------------------------------------');
     
+    let processedCount = 0;
     for (const sub of cancelledSubs) {
       try {
-        console.log(`\n구독 해지 처리: ${sub.user_id}`);
-        console.log(`  구독 ID: ${sub.subscription_id}`);
+        console.log(`\n[${processedCount + 1}/${cancelledSubs.length}] 구독 해지 처리`);
+        console.log(`  User ID: ${sub.user_id}`);
         console.log(`  청구기간 종료: ${sub.current_period_end}`);
         
         // 구독 상태를 'cancelled'로 변경
@@ -519,9 +552,10 @@ async function handleCancelledSubscriptions() {
           .eq('subscription_id', sub.subscription_id);
         
         if (updateError) {
-          console.error(`  해지 처리 실패:`, updateError);
+          console.error(`  ❌ 해지 처리 실패:`, updateError);
         } else {
           console.log(`  ✅ 해지 완료`);
+          processedCount++;
         }
         
       } catch (error) {
@@ -529,10 +563,12 @@ async function handleCancelledSubscriptions() {
       }
     }
     
-    console.log(`\n해지 처리 완료: ${cancelledSubs.length}건`);
+    console.log('\n========================================');
+    console.log(`3단계 완료: ${processedCount}/${cancelledSubs.length}건 처리`);
+    console.log('========================================\n');
     
   } catch (error) {
-    console.error('해지 구독 처리 오류:', error);
+    console.error('❌ 해지 구독 처리 오류:', error);
   }
 }
 
@@ -540,9 +576,13 @@ async function handleCancelledSubscriptions() {
  * 메인 스케줄러 실행 함수
  */
 async function runRecurringBillingScheduler() {
-  console.log('\n========================================');
-  console.log('자동결제 스케줄러 시작:', new Date().toISOString());
-  console.log('========================================\n');
+  const startTime = new Date();
+  console.log('\n╔════════════════════════════════════════╗');
+  console.log('║   자동결제 스케줄러 실행 시작          ║');
+  console.log('╚════════════════════════════════════════╝');
+  console.log('시작 시각(UTC):', startTime.toISOString());
+  console.log('시작 시각(KST):', new Date(startTime.getTime() + 9*60*60*1000).toISOString().replace('Z', '+09:00'));
+  console.log('');
 
   try {
     // ===== 1단계: 무료 기간 종료 → 첫 유료 결제 =====
@@ -555,11 +595,13 @@ async function runRecurringBillingScheduler() {
     await handleCancelledSubscriptions();
 
     // ===== 4단계: 정기 결제 처리 (유료 구독만) =====
-    // 오늘 자정 (오전 1시 실행이므로 어제 날짜의 23:59:59가 종료일)
+    console.log('\n========================================');
+    console.log('4단계: 정기 결제 처리 시작');
+    console.log('========================================');
+    
     const today = new Date();
     const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1, 23, 59, 59, 999);
 
-    console.log('\n----- 정기 결제 처리 -----');
     console.log('결제 대상 조회 기준 시각:', yesterday.toISOString());
 
     // current_period_end가 어제 자정(23:59:59) 이하인 active 구독 조회
@@ -576,19 +618,23 @@ async function runRecurringBillingScheduler() {
       throw error;
     }
 
-    console.log(`결제 대상 구독: ${subscriptions?.length || 0}건\n`);
+    console.log(`\n📋 결제 대상 구독: ${subscriptions?.length || 0}건`);
 
     if (!subscriptions || subscriptions.length === 0) {
-      console.log('결제할 구독이 없습니다.');
+      console.log('✅ 결제할 구독이 없습니다.');
+      console.log('========================================\n');
       return;
     }
+    
+    console.log('----------------------------------------');
 
     let successCount = 0;
     let failCount = 0;
 
     // 각 구독에 대해 자동결제 실행
     for (const subscription of subscriptions) {
-      console.log(`\n----- 처리 중: ${subscription.user_id} -----`);
+      console.log(`\n[${successCount + failCount + 1}/${subscriptions.length}] 정기 결제 처리`);
+      console.log(`User ID: ${subscription.user_id}`);
 
       try {
         // 1. 결제수단 조회
@@ -600,12 +646,14 @@ async function runRecurringBillingScheduler() {
           .single();
 
         if (!paymentMethod) {
-          console.error('유효한 결제수단 없음');
+          console.error('❌ 유효한 결제수단 없음');
           failCount++;
           continue;
         }
+        console.log('✓ 결제수단 확인 완료');
 
         // 2. 지난 한 달 사용량 집계 및 저장
+        console.log('사용량 집계 중...');
         const aggregatedUsage = await aggregateUsageForPeriod(subscription);
 
         // 3. 사용량 기반 플랜 자동 결정
@@ -614,9 +662,10 @@ async function runRecurringBillingScheduler() {
           subscription.current_period_start
         );
 
-        console.log(`사용량: ${totalRxCount}건 → 플랜: ${selectedPlan.plan_name} (${selectedPlan.monthly_price}원)`);
+        console.log(`✓ 사용량: ${totalRxCount}건 → 플랜: ${selectedPlan.plan_name} (${selectedPlan.monthly_price.toLocaleString()}원)`);
 
         // 4. 자동결제 실행
+        console.log('결제 시도 중...');
         const paymentResult = await executeRecurringPayment(
           subscription,
           paymentMethod,
@@ -687,8 +736,9 @@ async function runRecurringBillingScheduler() {
             })
             .eq('subscription_id', subscription.subscription_id);
 
-          console.log(`✅ 결제 성공: ${paymentResult.amount}원${paymentResult.isFree ? ' (무료 프로모션)' : ''}`);
-          console.log(`   다음 결제일: ${newPeriod.end.toISOString()}`);
+          console.log(`✅ 결제 성공: ${paymentResult.amount.toLocaleString()}원${paymentResult.isFree ? ' (무료 프로모션)' : ''}`);
+          console.log(`   다음 주기: ${newPeriod.start.toISOString().split('T')[0]} ~ ${newPeriod.end.toISOString().split('T')[0]}`);
+          console.log(`   다음 결제일: ${newPeriod.end.toISOString().split('T')[0]}`);
           successCount++;
 
         } else {
@@ -740,9 +790,19 @@ async function runRecurringBillingScheduler() {
       }
     }
 
+    const endTime = new Date();
+    const duration = ((endTime - startTime) / 1000).toFixed(2);
+    
     console.log('\n========================================');
-    console.log('자동결제 스케줄러 완료');
-    console.log(`성공: ${successCount}건 / 실패: ${failCount}건`);
+    console.log('4단계 완료');
+    console.log('========================================\n');
+    
+    console.log('\n╔════════════════════════════════════════╗');
+    console.log('║   자동결제 스케줄러 실행 완료          ║');
+    console.log('╚════════════════════════════════════════╝');
+    console.log(`✅ 정기 결제: 성공 ${successCount}건 / 실패 ${failCount}건`);
+    console.log(`⏱️  실행 시간: ${duration}초`);
+    console.log(`🕐 종료 시각(KST): ${new Date(endTime.getTime() + 9*60*60*1000).toISOString().replace('Z', '+09:00')}`);
     console.log('========================================\n');
 
   } catch (error) {
