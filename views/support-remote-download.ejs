@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TeamViewer 다운로드 - PharmChecker</title>
+  <link rel="stylesheet" href="/bulma.min.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      padding-top: 60px;
+    }
+
+    /* 헤더 네비게이션 */
+    .header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      z-index: 1000;
+      padding: 12px 0;
+    }
+
+    .header .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      font-size: 24px;
+      font-weight: 700;
+      color: #191f28;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nav-menu {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+
+    .nav-item {
+      position: relative;
+    }
+
+    .nav-link {
+      font-size: 15px;
+      font-weight: 500;
+      color: #191f28;
+      text-decoration: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      transition: background-color 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+
+    .nav-link:hover {
+      background-color: #f8f9fa;
+    }
+
+    .nav-dropdown-arrow {
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid #6b7684;
+      transition: transform 0.2s;
+    }
+
+    .nav-item.active .nav-dropdown-arrow {
+      transform: rotate(180deg);
+    }
+
+    .nav-dropdown-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      min-width: 220px;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-10px);
+      transition: all 0.3s ease;
+      z-index: 9999;
+    }
+
+    .nav-dropdown-menu.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+
+    .nav-dropdown-item {
+      padding: 12px 20px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid #f0f0f0;
+      text-decoration: none;
+      color: #191f28;
+    }
+
+    .nav-dropdown-item:first-child {
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
+    }
+
+    .nav-dropdown-item:last-child {
+      border-bottom-left-radius: 12px;
+      border-bottom-right-radius: 12px;
+      border-bottom: none;
+    }
+
+    .nav-dropdown-item:hover {
+      background-color: #f8f9fa;
+    }
+
+    .nav-dropdown-item-icon {
+      font-size: 16px;
+    }
+
+    .nav-dropdown-item-text {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .user-profile {
+      position: relative;
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 16px;
+      border-radius: 24px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .user-info:hover {
+      background-color: #f8f9fa;
+    }
+
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .user-avatar img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    .user-name {
+      font-size: 15px;
+      font-weight: 500;
+      color: #191f28;
+    }
+
+    .dropdown-arrow {
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid #6b7684;
+      transition: transform 0.2s;
+    }
+
+    .user-info.active .dropdown-arrow {
+      transform: rotate(180deg);
+    }
+
+    .dropdown-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      min-width: 200px;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-10px);
+      transition: all 0.3s ease;
+      z-index: 9999;
+    }
+
+    .dropdown-menu.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+      display: block;
+    }
+
+    .dropdown-item {
+      padding: 14px 20px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .dropdown-item:first-child {
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
+    }
+
+    .dropdown-item:last-child {
+      border-bottom-left-radius: 12px;
+      border-bottom-right-radius: 12px;
+      border-bottom: none;
+    }
+
+    .dropdown-item:hover {
+      background-color: #f8f9fa;
+    }
+
+    .dropdown-item-icon {
+      font-size: 18px;
+    }
+
+    .dropdown-item-text {
+      font-size: 14px;
+      color: #191f28;
+      font-weight: 500;
+    }
+
+    .dropdown-item.logout {
+      color: #e74c3c;
+    }
+
+    .dropdown-item.logout:hover {
+      background-color: #fee;
+    }
+
+    .dropdown-item.logout .dropdown-item-text {
+      color: #e74c3c;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+    .download-section {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .download-card {
+      background: white;
+      border: 2px solid #3273dc;
+      border-radius: 8px;
+      padding: 2rem;
+      text-align: center;
+      margin: 2rem 0;
+    }
+    .download-icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+    }
+    .download-button {
+      font-size: 1.2rem;
+      padding: 1.5rem 3rem;
+      margin: 1.5rem 0;
+    }
+    .info-box {
+      background: #f0f7ff;
+      border-left: 4px solid #3273dc;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      border-radius: 4px;
+    }
+    .warning-box {
+      background: #fff8e6;
+      border-left: 4px solid #ffdd57;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      border-radius: 4px;
+    }
+    .step-list {
+      list-style: none;
+      padding: 0;
+      counter-reset: step-counter;
+    }
+    .step-list li {
+      counter-increment: step-counter;
+      padding: 1rem;
+      margin-bottom: 0.5rem;
+      background: #f9f9f9;
+      border-radius: 4px;
+      position: relative;
+      padding-left: 3.5rem;
+    }
+    .step-list li:before {
+      content: counter(step-counter);
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 30px;
+      height: 30px;
+      line-height: 30px;
+      text-align: center;
+      background: #3273dc;
+      color: white;
+      border-radius: 50%;
+      font-weight: 700;
+    }
+    .platform-buttons {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      margin: 1.5rem 0;
+    }
+    .platform-button {
+      flex: 1;
+      max-width: 200px;
+      padding: 1rem;
+      background: #f9f9f9;
+      border: 2px solid #dbdbdb;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s;
+      text-align: center;
+    }
+    .platform-button:hover {
+      border-color: #3273dc;
+      background: #f0f7ff;
+    }
+    .platform-button.selected {
+      border-color: #3273dc;
+      background: #e8f4ff;
+    }
+    .platform-icon {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+    .requirement-box {
+      background: #f9f9f9;
+      border: 1px solid #dbdbdb;
+      border-radius: 4px;
+      padding: 1rem;
+      margin: 1rem 0;
+    }
+    .requirement-box h4 {
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <!-- 헤더 -->
+  <header class="header">
+    <div class="container">
+      <a href="/pharmchecker" class="logo" style="text-decoration: none;">
+        <span>TAID SOFT</span>
+      </a>
+      
+      <div class="nav-menu">
+        <!-- 고객센터 메뉴 -->
+        <div class="nav-item" id="customerCenterNav">
+          <div class="nav-link" onclick="toggleNavDropdown()">
+            <span>고객센터</span>
+            <div class="nav-dropdown-arrow"></div>
+          </div>
+          <div class="nav-dropdown-menu" id="navDropdownMenu">
+            <a href="/support/tickets" class="nav-dropdown-item">
+              <span class="nav-dropdown-item-icon">✍️</span>
+              <span class="nav-dropdown-item-text">문의하기</span>
+            </a>
+            <a href="/support/faq" class="nav-dropdown-item">
+              <span class="nav-dropdown-item-icon">❓</span>
+              <span class="nav-dropdown-item-text">FAQ</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- 사용자 프로필 -->
+        <div class="user-profile">
+          <div class="user-info" onclick="toggleDropdown()">
+            <div class="user-avatar" id="userAvatar">
+              <span id="userInitial">U</span>
+            </div>
+            <span class="user-name" id="userName">게스트</span>
+            <div class="dropdown-arrow"></div>
+          </div>
+          <div class="dropdown-menu" id="dropdownMenu">
+            <div class="dropdown-item" onclick="window.location.href='/my-subscription'">
+              <span class="dropdown-item-icon">📋</span>
+              <span class="dropdown-item-text">내 구독 정보</span>
+            </div>
+            <div class="dropdown-item" onclick="window.location.href='/payment-history'">
+              <span class="dropdown-item-icon">💳</span>
+              <span class="dropdown-item-text">결제 내역</span>
+            </div>
+            <div class="dropdown-item" onclick="viewProfile()">
+              <span class="dropdown-item-icon">👤</span>
+              <span class="dropdown-item-text">프로필 보기</span>
+            </div>
+            <div class="dropdown-item logout" onclick="logout()">
+              <span class="dropdown-item-icon">🚪</span>
+              <span class="dropdown-item-text">로그아웃</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <section class="section">
+    <div class="container download-section">
+      <h1 class="title">TeamViewer QuickSupport 다운로드</h1>
+      <p class="subtitle">원격 지원을 위한 프로그램을 다운로드해주세요.</p>
+
+      <!-- 다운로드 카드 -->
+      <div class="download-card">
+        <div class="download-icon">💻</div>
+        <h2 class="title is-4">TeamViewer QuickSupport</h2>
+        <p style="color: #7a7a7a; margin-bottom: 1rem;">설치가 필요 없는 일회용 원격 지원 프로그램</p>
+        
+        <!-- 플랫폼 선택 -->
+        <p style="font-weight: 600; margin-bottom: 1rem;">운영체제를 선택해주세요:</p>
+        <div class="platform-buttons">
+          <div class="platform-button selected" onclick="selectPlatform('windows')">
+            <div class="platform-icon">🪟</div>
+            <div>Windows</div>
+          </div>
+          <div class="platform-button" onclick="selectPlatform('mac')">
+            <div class="platform-icon">🍎</div>
+            <div>macOS</div>
+          </div>
+        </div>
+
+        <a href="https://download.teamviewer.com/download/TeamViewerQS.exe" 
+           id="download-link" 
+           class="button is-primary is-large download-button" 
+           target="_blank" 
+           rel="noopener noreferrer">
+          <span>다운로드</span>
+        </a>
+
+        <p style="font-size: 0.9rem; color: #7a7a7a; margin-top: 1rem;">
+          파일 크기: 약 15MB | 버전: 최신 안정 버전
+        </p>
+      </div>
+
+      <!-- 중요 안내 -->
+      <div class="warning-box">
+        <h3 class="title is-5">⚠️ 다운로드 전 확인사항</h3>
+        <ul style="margin-left: 1.5rem;">
+          <li>TeamViewer QuickSupport는 <strong>무료</strong>이며 <strong>설치가 필요 없습니다</strong>.</li>
+          <li>다운로드 후 <strong>바로 실행</strong>만 하시면 됩니다.</li>
+          <li>원격 지원 완료 후 프로그램을 종료하면 <strong>자동으로 삭제</strong>됩니다.</li>
+          <li>공식 TeamViewer 웹사이트에서 다운로드되므로 안전합니다.</li>
+        </ul>
+      </div>
+
+      <!-- 사용 방법 -->
+      <div class="info-box">
+        <h3 class="title is-5">📋 사용 방법</h3>
+        <ol class="step-list">
+          <li>위 버튼을 클릭하여 TeamViewer QuickSupport를 다운로드합니다.</li>
+          <li>다운로드한 파일을 실행합니다 (설치 과정 없음).</li>
+          <li>프로그램이 실행되면 9자리 <strong>ID</strong>가 표시됩니다.</li>
+          <li><strong>1588-8989</strong>로 전화하여 상담원에게 ID를 알려주세요.</li>
+          <li>상담원이 연결 요청을 보내면 <strong>"연결 허용"</strong>을 클릭합니다.</li>
+          <li>원격 지원이 진행됩니다.</li>
+        </ol>
+      </div>
+
+      <!-- 시스템 요구사항 -->
+      <h3 class="title is-5" style="margin-top: 2rem;">시스템 요구사항</h3>
+      
+      <div class="requirement-box">
+        <h4>🪟 Windows</h4>
+        <p>• Windows 7 이상 (Windows 10/11 권장)</p>
+        <p>• 인터넷 연결 필수</p>
+        <p>• 최소 50MB 여유 공간</p>
+      </div>
+
+      <div class="requirement-box">
+        <h4>🍎 macOS</h4>
+        <p>• macOS 10.13 이상</p>
+        <p>• 인터넷 연결 필수</p>
+        <p>• 최소 50MB 여유 공간</p>
+      </div>
+
+      <!-- FAQ -->
+      <div class="info-box" style="margin-top: 2rem;">
+        <h3 class="title is-5">❓ 자주 묻는 질문</h3>
+        
+        <div style="margin-bottom: 1rem;">
+          <strong>Q. 설치가 필요한가요?</strong>
+          <p>A. 아니요, 다운로드 후 바로 실행하시면 됩니다. 별도 설치 과정이 없습니다.</p>
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+          <strong>Q. 사용 후 프로그램을 삭제해야 하나요?</strong>
+          <p>A. 프로그램을 종료하면 자동으로 제거됩니다. 별도 삭제 과정이 필요 없습니다.</p>
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+          <strong>Q. 안전한가요?</strong>
+          <p>A. 네, TeamViewer는 전 세계적으로 사용되는 원격 지원 솔루션으로 보안이 검증되었습니다.</p>
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+          <strong>Q. 비용이 발생하나요?</strong>
+          <p>A. 아니요, 고객 측에서는 무료로 사용 가능합니다.</p>
+        </div>
+
+        <div>
+          <strong>Q. 다운로드가 안 되거나 실행이 안 됩니다.</strong>
+          <p>A. 고객센터(1588-8989)로 문의해주시면 자세히 안내해드리겠습니다.</p>
+        </div>
+      </div>
+
+      <!-- 하단 버튼 -->
+      <div style="margin-top: 2rem; padding: 1.5rem 0; border-top: 1px solid #dbdbdb;">
+        <div class="field is-grouped">
+          <div class="control is-expanded">
+            <a href="/support/remote/request" class="button is-info is-fullwidth is-large">
+              <span>다운로드 후 원격 지원 요청하기</span>
+            </a>
+          </div>
+          <div class="control">
+            <a href="/support/tickets" class="button is-light is-large">돌아가기</a>
+          </div>
+        </div>
+        <p style="text-align: center; margin-top: 1rem; color: #7a7a7a; font-size: 0.9rem;">
+          긴급 문의: <strong style="color: #3273dc;">1588-8989</strong> (평일 09:00 - 18:00)
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    // 플랫폼 선택
+    function selectPlatform(platform) {
+      // 모든 버튼에서 selected 클래스 제거
+      document.querySelectorAll('.platform-button').forEach(btn => {
+        btn.classList.remove('selected');
+      });
+
+      // 선택된 버튼에 selected 클래스 추가
+      event.currentTarget.classList.add('selected');
+
+      // 다운로드 링크 변경
+      const downloadLink = document.getElementById('download-link');
+      if (platform === 'windows') {
+        downloadLink.href = 'https://download.teamviewer.com/download/TeamViewerQS.exe';
+      } else if (platform === 'mac') {
+        downloadLink.href = 'https://download.teamviewer.com/download/TeamViewerQS.dmg';
+      }
+    }
+
+    // 운영체제 자동 감지
+    window.addEventListener('DOMContentLoaded', () => {
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isMac = userAgent.indexOf('mac') !== -1;
+      
+      if (isMac) {
+        // Mac 버튼 선택
+        document.querySelectorAll('.platform-button').forEach(btn => {
+          btn.classList.remove('selected');
+        });
+        document.querySelectorAll('.platform-button')[1].classList.add('selected');
+        document.getElementById('download-link').href = 'https://download.teamviewer.com/download/TeamViewerQS.dmg';
+      }
+    });
+  </script>
+
+  <script>
+    // 헤더 공통 JavaScript
+    function toggleDropdown() {
+      const dropdown = document.getElementById('dropdownMenu');
+      const userInfo = document.querySelector('.user-info');
+      if (dropdown && userInfo) {
+        dropdown.classList.toggle('active');
+        userInfo.classList.toggle('active');
+        const navDropdown = document.getElementById('navDropdownMenu');
+        const navItem = document.getElementById('customerCenterNav');
+        if (navDropdown && navItem) {
+          navDropdown.classList.remove('active');
+          navItem.classList.remove('active');
+        }
+      }
+    }
+    
+    function toggleNavDropdown() {
+      const navDropdown = document.getElementById('navDropdownMenu');
+      const navItem = document.getElementById('customerCenterNav');
+      if (navDropdown && navItem) {
+        navDropdown.classList.toggle('active');
+        navItem.classList.toggle('active');
+      }
+      const dropdown = document.getElementById('dropdownMenu');
+      const userInfo = document.querySelector('.user-info');
+      if (dropdown && userInfo) {
+        dropdown.classList.remove('active');
+        userInfo.classList.remove('active');
+      }
+    }
+    
+    document.addEventListener('click', function(event) {
+      const userProfile = document.querySelector('.user-profile');
+      const dropdown = document.getElementById('dropdownMenu');
+      const userInfo = document.querySelector('.user-info');
+      const customerCenterNav = document.getElementById('customerCenterNav');
+      const navDropdown = document.getElementById('navDropdownMenu');
+      
+      if (userProfile && !userProfile.contains(event.target)) {
+        if (dropdown) dropdown.classList.remove('active');
+        if (userInfo) userInfo.classList.remove('active');
+      }
+      
+      if (customerCenterNav && !customerCenterNav.contains(event.target)) {
+        if (navDropdown) navDropdown.classList.remove('active');
+        if (customerCenterNav) customerCenterNav.classList.remove('active');
+      }
+    });
+
+    function viewProfile() {
+      const userName = localStorage.getItem('name');
+      const userEmail = localStorage.getItem('email');
+      const pharmacyName = localStorage.getItem('pharmacy_name');
+      if (userName) {
+        let profileInfo = `프로필 정보\n\n이름: ${userName}\n이메일: ${userEmail}`;
+        if (pharmacyName) profileInfo += `\n약국명: ${pharmacyName}`;
+        alert(profileInfo);
+      }
+    }
+    
+    function logout() {
+      if (confirm('로그아웃 하시겠습니까?')) {
+        localStorage.clear();
+        window.location.href = '/login';
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', function() {
+      const userName = localStorage.getItem('name');
+      const userPicture = localStorage.getItem('picture');
+      const userNameEl = document.getElementById('userName');
+      const userAvatarEl = document.getElementById('userAvatar');
+      const userInitialEl = document.getElementById('userInitial');
+      
+      if (userNameEl && userName) {
+        userNameEl.textContent = userName + '님';
+        if (userPicture && userAvatarEl) {
+          userAvatarEl.innerHTML = `<img src="${userPicture}" alt="프로필">`;
+        } else if (userInitialEl) {
+          const initial = (userName || 'G').charAt(0).toUpperCase();
+          userInitialEl.textContent = initial;
+        }
+      }
+    });
+  </script>
+</body>
+</html>

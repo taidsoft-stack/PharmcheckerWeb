@@ -47,6 +47,104 @@
       gap: 8px;
     }
 
+    .nav-menu {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+
+    .nav-item {
+      position: relative;
+    }
+
+    .nav-link {
+      font-size: 15px;
+      font-weight: 500;
+      color: #191f28;
+      text-decoration: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      transition: background-color 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+
+    .nav-link:hover {
+      background-color: #f8f9fa;
+    }
+
+    .nav-dropdown-arrow {
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid #6b7684;
+      transition: transform 0.2s;
+    }
+
+    .nav-item.active .nav-dropdown-arrow {
+      transform: rotate(180deg);
+    }
+
+    .nav-dropdown-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      min-width: 220px;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-10px);
+      transition: all 0.3s ease;
+      z-index: 9999;
+    }
+
+    .nav-dropdown-menu.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+
+    .nav-dropdown-item {
+      padding: 12px 20px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid #f0f0f0;
+      text-decoration: none;
+      color: #191f28;
+    }
+
+    .nav-dropdown-item:first-child {
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
+    }
+
+    .nav-dropdown-item:last-child {
+      border-bottom-left-radius: 12px;
+      border-bottom-right-radius: 12px;
+      border-bottom: none;
+    }
+
+    .nav-dropdown-item:hover {
+      background-color: #f8f9fa;
+    }
+
+    .nav-dropdown-item-icon {
+      font-size: 16px;
+    }
+
+    .nav-dropdown-item-text {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
     .user-profile {
       position: relative;
     }
@@ -567,30 +665,52 @@
       <a href="/pharmchecker" class="logo" style="text-decoration: none;">
         <span>TAID SOFT</span>
       </a>
-      <div class="user-profile">
-        <div class="user-info" onclick="toggleDropdown()">
-          <div class="user-avatar" id="userAvatar">
-            <span id="userInitial">U</span>
+      
+      <div class="nav-menu">
+        <!-- 고객센터 메뉴 -->
+        <div class="nav-item" id="customerCenterNav">
+          <div class="nav-link" onclick="toggleNavDropdown()">
+            <span>고객센터</span>
+            <div class="nav-dropdown-arrow"></div>
           </div>
-          <span class="user-name" id="userName">게스트</span>
-          <div class="dropdown-arrow"></div>
+          <div class="nav-dropdown-menu" id="navDropdownMenu">
+            <a href="/support/tickets" class="nav-dropdown-item">
+              <span class="nav-dropdown-item-icon">✍️</span>
+              <span class="nav-dropdown-item-text">문의하기</span>
+            </a>
+            <a href="/support/faq" class="nav-dropdown-item">
+              <span class="nav-dropdown-item-icon">❓</span>
+              <span class="nav-dropdown-item-text">FAQ</span>
+            </a>
+          </div>
         </div>
-        <div class="dropdown-menu" id="dropdownMenu">
-          <div class="dropdown-item" onclick="window.location.href='/my-subscription'">
-            <span class="dropdown-item-icon">📋</span>
-            <span class="dropdown-item-text">내 구독 정보</span>
+
+        <!-- 사용자 프로필 -->
+        <div class="user-profile">
+          <div class="user-info" onclick="toggleDropdown()">
+            <div class="user-avatar" id="userAvatar">
+              <span id="userInitial">U</span>
+            </div>
+            <span class="user-name" id="userName">게스트</span>
+            <div class="dropdown-arrow"></div>
           </div>
-          <div class="dropdown-item" onclick="window.location.href='/payment-history'">
-            <span class="dropdown-item-icon">💳</span>
-            <span class="dropdown-item-text">결제 내역</span>
-          </div>
-          <div class="dropdown-item" onclick="viewProfile()">
-            <span class="dropdown-item-icon">👤</span>
-            <span class="dropdown-item-text">프로필 보기</span>
-          </div>
-          <div class="dropdown-item logout" onclick="logout()">
-            <span class="dropdown-item-icon">🚪</span>
-            <span class="dropdown-item-text">로그아웃</span>
+          <div class="dropdown-menu" id="dropdownMenu">
+            <div class="dropdown-item" onclick="window.location.href='/my-subscription'">
+              <span class="dropdown-item-icon">📋</span>
+              <span class="dropdown-item-text">내 구독 정보</span>
+            </div>
+            <div class="dropdown-item" onclick="window.location.href='/payment-history'">
+              <span class="dropdown-item-icon">💳</span>
+              <span class="dropdown-item-text">결제 내역</span>
+            </div>
+            <div class="dropdown-item" onclick="viewProfile()">
+              <span class="dropdown-item-icon">👤</span>
+              <span class="dropdown-item-text">프로필 보기</span>
+            </div>
+            <div class="dropdown-item logout" onclick="logout()">
+              <span class="dropdown-item-icon">🚪</span>
+              <span class="dropdown-item-text">로그아웃</span>
+            </div>
           </div>
         </div>
       </div>
@@ -763,6 +883,31 @@
       
       dropdown.classList.toggle('active');
       userInfo.classList.toggle('active');
+      
+      // 고객센터 드롭다운 닫기
+      const navDropdown = document.getElementById('navDropdownMenu');
+      const navItem = document.getElementById('customerCenterNav');
+      if (navDropdown && navItem) {
+        navDropdown.classList.remove('active');
+        navItem.classList.remove('active');
+      }
+    }
+    
+    // 고객센터 드롭다운 토글
+    function toggleNavDropdown() {
+      const navDropdown = document.getElementById('navDropdownMenu');
+      const navItem = document.getElementById('customerCenterNav');
+      
+      navDropdown.classList.toggle('active');
+      navItem.classList.toggle('active');
+      
+      // 사용자 프로필 드롭다운 닫기
+      const dropdown = document.getElementById('dropdownMenu');
+      const userInfo = document.querySelector('.user-info');
+      if (dropdown && userInfo) {
+        dropdown.classList.remove('active');
+        userInfo.classList.remove('active');
+      }
     }
     
     // 외부 클릭 시 드롭다운 닫기
@@ -771,9 +916,19 @@
       const dropdown = document.getElementById('dropdownMenu');
       const userInfo = document.querySelector('.user-info');
       
-      if (!userProfile.contains(event.target)) {
+      const customerCenterNav = document.getElementById('customerCenterNav');
+      const navDropdown = document.getElementById('navDropdownMenu');
+      
+      // 사용자 프로필 드롭다운 닫기
+      if (userProfile && !userProfile.contains(event.target)) {
         dropdown.classList.remove('active');
         userInfo.classList.remove('active');
+      }
+      
+      // 고객센터 드롭다운 닫기
+      if (customerCenterNav && !customerCenterNav.contains(event.target)) {
+        navDropdown.classList.remove('active');
+        customerCenterNav.classList.remove('active');
       }
     });
     

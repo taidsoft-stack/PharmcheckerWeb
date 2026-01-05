@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>내 문의 내역 - PharmChecker</title>
+  <link rel="stylesheet" href="/bulma.min.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      padding-top: 60px;
+    }
+
+    /* 헤더 네비게이션 */
+    .header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      z-index: 1000;
+      padding: 12px 0;
+    }
+
+    .header .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      font-size: 24px;
+      font-weight: 700;
+      color: #191f28;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nav-menu {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+
+    .nav-item {
+      position: relative;
+    }
+
+    .nav-link {
+      font-size: 15px;
+      font-weight: 500;
+      color: #191f28;
+      text-decoration: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      transition: background-color 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+
+    .nav-link:hover {
+      background-color: #f8f9fa;
+    }
+
+    .nav-dropdown-arrow {
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid #6b7684;
+      transition: transform 0.2s;
+    }
+
+    .nav-item.active .nav-dropdown-arrow {
+      transform: rotate(180deg);
+    }
+
+    .nav-dropdown-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      min-width: 220px;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-10px);
+      transition: all 0.3s ease;
+      z-index: 9999;
+    }
+
+    .nav-dropdown-menu.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+
+    .nav-dropdown-item {
+      padding: 12px 20px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid #f0f0f0;
+      text-decoration: none;
+      color: #191f28;
+    }
+
+    .nav-dropdown-item:first-child {
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
+    }
+
+    .nav-dropdown-item:last-child {
+      border-bottom-left-radius: 12px;
+      border-bottom-right-radius: 12px;
+      border-bottom: none;
+    }
+
+    .nav-dropdown-item:hover {
+      background-color: #f8f9fa;
+    }
+
+    .nav-dropdown-item-icon {
+      font-size: 16px;
+    }
+
+    .nav-dropdown-item-text {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .user-profile {
+      position: relative;
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 16px;
+      border-radius: 24px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .user-info:hover {
+      background-color: #f8f9fa;
+    }
+
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .user-avatar img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    .user-name {
+      font-size: 15px;
+      font-weight: 500;
+      color: #191f28;
+    }
+
+    .dropdown-arrow {
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid #6b7684;
+      transition: transform 0.2s;
+    }
+
+    .user-info.active .dropdown-arrow {
+      transform: rotate(180deg);
+    }
+
+    .dropdown-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      min-width: 200px;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-10px);
+      transition: all 0.3s ease;
+      z-index: 9999;
+    }
+
+    .dropdown-menu.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+      display: block;
+    }
+
+    .dropdown-item {
+      padding: 14px 20px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .dropdown-item:first-child {
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
+    }
+
+    .dropdown-item:last-child {
+      border-bottom-left-radius: 12px;
+      border-bottom-right-radius: 12px;
+      border-bottom: none;
+    }
+
+    .dropdown-item:hover {
+      background-color: #f8f9fa;
+    }
+
+    .dropdown-item-icon {
+      font-size: 18px;
+    }
+
+    .dropdown-item-text {
+      font-size: 14px;
+      color: #191f28;
+      font-weight: 500;
+    }
+
+    .dropdown-item.logout {
+      color: #e74c3c;
+    }
+
+    .dropdown-item.logout:hover {
+      background-color: #fee;
+    }
+
+    .dropdown-item.logout .dropdown-item-text {
+      color: #e74c3c;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+    .ticket-card {
+      margin-bottom: 1.5rem;
+      cursor: pointer;
+      transition: box-shadow 0.3s;
+    }
+    .ticket-card:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .status-badge {
+      font-size: 0.85rem;
+      padding: 0.25rem 0.75rem;
+      border-radius: 4px;
+    }
+    .status-open {
+      background-color: #48c774;
+      color: white;
+    }
+    .status-answered {
+      background-color: #3273dc;
+      color: white;
+    }
+    .status-closed {
+      background-color: #7a7a7a;
+      color: white;
+    }
+    .type-badge {
+      font-size: 0.85rem;
+      padding: 0.25rem 0.75rem;
+      border-radius: 4px;
+      background-color: #f5f5f5;
+      color: #363636;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: #7a7a7a;
+    }
+    .empty-state svg {
+      width: 80px;
+      height: 80px;
+      margin-bottom: 1rem;
+      opacity: 0.3;
+    }
+    .fixed-bottom-buttons {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      border-top: 1px solid #dbdbdb;
+      padding: 1rem;
+      box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+      z-index: 100;
+    }
+    .content-with-bottom-space {
+      padding-bottom: 100px;
+    }
+    .attachment-count {
+      font-size: 0.85rem;
+      color: #7a7a7a;
+      margin-left: 0.5rem;
+    }
+    .reply-indicator {
+      font-size: 0.85rem;
+      color: #3273dc;
+      font-weight: 600;
+    }
+    .ticket-meta {
+      font-size: 0.9rem;
+      color: #7a7a7a;
+    }
+    .ticket-detail {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: #f9f9f9;
+      border-radius: 4px;
+      display: none;
+    }
+    .ticket-detail.is-active {
+      display: block;
+    }
+    .reply-box {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: #eef6fc;
+      border-left: 4px solid #3273dc;
+      border-radius: 4px;
+    }
+    .reply-box .reply-header {
+      font-weight: 600;
+      color: #3273dc;
+      margin-bottom: 0.5rem;
+    }
+    .attachment-link {
+      display: inline-block;
+      margin-right: 1rem;
+      margin-bottom: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: white;
+      border: 1px solid #dbdbdb;
+      border-radius: 4px;
+      text-decoration: none;
+      color: #363636;
+      transition: background 0.2s;
+    }
+    .attachment-link:hover {
+      background: #f5f5f5;
+    }
+    .loading {
+      text-align: center;
+      padding: 2rem;
+      color: #7a7a7a;
+    }
+    .remote-support-button {
+      position: fixed;
+      top: 100px;
+      right: 2rem;
+      z-index: 90;
+    }
+  </style>
+</head>
+<body>
+  <!-- 헤더 -->
+  <header class="header">
+    <div class="container">
+      <a href="/pharmchecker" class="logo" style="text-decoration: none;">
+        <span>TAID SOFT</span>
+      </a>
+      
+      <div class="nav-menu">
+        <!-- 고객센터 메뉴 -->
+        <div class="nav-item" id="customerCenterNav">
+          <div class="nav-link" onclick="toggleNavDropdown()">
+            <span>고객센터</span>
+            <div class="nav-dropdown-arrow"></div>
+          </div>
+          <div class="nav-dropdown-menu" id="navDropdownMenu">
+            <a href="/support/tickets" class="nav-dropdown-item">
+              <span class="nav-dropdown-item-icon">✍️</span>
+              <span class="nav-dropdown-item-text">문의하기</span>
+            </a>
+            <a href="/support/faq" class="nav-dropdown-item">
+              <span class="nav-dropdown-item-icon">❓</span>
+              <span class="nav-dropdown-item-text">FAQ</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- 사용자 프로필 -->
+        <div class="user-profile">
+          <div class="user-info" onclick="toggleDropdown()">
+            <div class="user-avatar" id="userAvatar">
+              <span id="userInitial">U</span>
+            </div>
+            <span class="user-name" id="userName">게스트</span>
+            <div class="dropdown-arrow"></div>
+          </div>
+          <div class="dropdown-menu" id="dropdownMenu">
+            <div class="dropdown-item" onclick="window.location.href='/my-subscription'">
+              <span class="dropdown-item-icon">📋</span>
+              <span class="dropdown-item-text">내 구독 정보</span>
+            </div>
+            <div class="dropdown-item" onclick="window.location.href='/payment-history'">
+              <span class="dropdown-item-icon">💳</span>
+              <span class="dropdown-item-text">결제 내역</span>
+            </div>
+            <div class="dropdown-item" onclick="viewProfile()">
+              <span class="dropdown-item-icon">👤</span>
+              <span class="dropdown-item-text">프로필 보기</span>
+            </div>
+            <div class="dropdown-item logout" onclick="logout()">
+              <span class="dropdown-item-icon">🚪</span>
+              <span class="dropdown-item-text">로그아웃</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- 우측 상단 원격 지원 버튼 -->
+  <div class="remote-support-button">
+    <a href="/support/remote/request" class="button is-info">
+      <span>🖥️ 원격 지원 요청하기</span>
+    </a>
+  </div>
+
+  <section class="section content-with-bottom-space">
+    <div class="container">
+      <h1 class="title">내 문의 내역</h1>
+      <p class="subtitle">고객센터 문의 및 원격 지원 요청 내역을 확인하실 수 있습니다.</p>
+
+      <div id="loading" class="loading">
+        <p>문의 내역을 불러오는 중...</p>
+      </div>
+
+      <div id="tickets-container" style="display:none;">
+        <!-- 문의 목록이 여기에 표시됩니다 -->
+      </div>
+
+      <div id="empty-state" class="empty-state" style="display:none;">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+        </svg>
+        <h3 class="title is-4">아직 문의 내역이 없습니다</h3>
+        <p>궁금하신 사항이 있으시면 언제든지 문의해주세요.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 하단 고정 버튼 -->
+  <div class="fixed-bottom-buttons">
+    <div class="container">
+      <a href="/support/new" class="button is-primary is-fullwidth is-large">
+        <span>문의 작성하기</span>
+      </a>
+    </div>
+  </div>
+
+  <script>
+    let ticketsData = [];
+
+    // 페이지 로드 시 문의 목록 불러오기
+    async function loadTickets() {
+      try {
+        const userId = localStorage.getItem('userId');
+        if (!userId) {
+          window.location.href = '/login';
+          return;
+        }
+
+        const response = await fetch('/support/api/tickets', {
+          headers: {
+            'X-User-Id': userId
+          }
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || '문의 목록을 불러오는데 실패했습니다.');
+        }
+
+        ticketsData = data.tickets;
+        renderTickets();
+      } catch (error) {
+        console.error('Error loading tickets:', error);
+        document.getElementById('loading').innerHTML = `
+          <div class="notification is-danger">
+            <p>${error.message}</p>
+          </div>
+        `;
+      }
+    }
+
+    // 문의 목록 렌더링
+    function renderTickets() {
+      const loading = document.getElementById('loading');
+      const container = document.getElementById('tickets-container');
+      const emptyState = document.getElementById('empty-state');
+
+      loading.style.display = 'none';
+
+      if (ticketsData.length === 0) {
+        emptyState.style.display = 'block';
+        return;
+      }
+
+      container.style.display = 'block';
+
+      const ticketsHtml = ticketsData.map(ticket => {
+        const statusText = getStatusText(ticket.status);
+        const statusClass = `status-${ticket.status}`;
+        const typeText = ticket.ticket_type === 'question' ? '일반 문의' : '원격 지원';
+        const hasReplies = ticket.support_replies && ticket.support_replies.length > 0;
+        const attachmentCount = ticket.support_attachments ? ticket.support_attachments.length : 0;
+        const createdDate = new Date(ticket.created_at).toLocaleDateString('ko-KR', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+
+        return `
+          <div class="card ticket-card" onclick="toggleTicketDetail('${ticket.ticket_id}')">
+            <div class="card-content">
+              <div class="level is-mobile">
+                <div class="level-left">
+                  <div class="level-item">
+                    <span class="type-badge">${typeText}</span>
+                  </div>
+                  <div class="level-item">
+                    <span class="status-badge ${statusClass}">${statusText}</span>
+                  </div>
+                </div>
+                <div class="level-right">
+                  ${hasReplies ? '<div class="level-item"><span class="reply-indicator">답변 완료</span></div>' : ''}
+                </div>
+              </div>
+
+              <div class="content">
+                <h4 class="title is-5" style="margin-top:0.5rem; margin-bottom:0.5rem;">${escapeHtml(ticket.title)}</h4>
+                <p class="ticket-meta">
+                  ${createdDate}
+                  ${attachmentCount > 0 ? `<span class="attachment-count">📎 첨부파일 ${attachmentCount}개</span>` : ''}
+                </p>
+              </div>
+
+              <!-- 상세 내용 (토글) -->
+              <div id="detail-${ticket.ticket_id}" class="ticket-detail">
+                <div class="content">
+                  <p style="white-space: pre-wrap;">${escapeHtml(ticket.content)}</p>
+                </div>
+
+                ${attachmentCount > 0 ? `
+                  <div style="margin-top: 1rem;">
+                    <strong>첨부파일:</strong><br>
+                    ${ticket.support_attachments.map(att => `
+                      <span class="attachment-link">
+                        📎 ${escapeHtml(att.file_name)} (${formatFileSize(att.file_size)})
+                      </span>
+                    `).join('')}
+                  </div>
+                ` : ''}
+
+                ${hasReplies ? ticket.support_replies.map(reply => `
+                  <div class="reply-box">
+                    <div class="reply-header">관리자 답변</div>
+                    <div class="reply-content">
+                      <p style="white-space: pre-wrap;">${escapeHtml(reply.reply_content)}</p>
+                      <p class="ticket-meta" style="margin-top: 0.5rem;">
+                        ${new Date(reply.created_at).toLocaleDateString('ko-KR', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                `).join('') : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      container.innerHTML = ticketsHtml;
+    }
+
+    // 문의 상세 토글
+    function toggleTicketDetail(ticketId) {
+      const detail = document.getElementById(`detail-${ticketId}`);
+      detail.classList.toggle('is-active');
+    }
+
+    // 상태 텍스트
+    function getStatusText(status) {
+      const statusMap = {
+        'open': '접수됨',
+        'answered': '답변완료',
+        'closed': '종료'
+      };
+      return statusMap[status] || status;
+    }
+
+    // 파일 크기 포맷
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    // HTML 이스케이프
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // 헤더 드롭다운 토글 함수들
+    function toggleDropdown() {
+      const dropdown = document.getElementById('dropdownMenu');
+      const userInfo = document.querySelector('.user-info');
+      
+      dropdown.classList.toggle('active');
+      userInfo.classList.toggle('active');
+      
+      // 고객센터 드롭다운 닫기
+      const navDropdown = document.getElementById('navDropdownMenu');
+      const navItem = document.getElementById('customerCenterNav');
+      if (navDropdown && navItem) {
+        navDropdown.classList.remove('active');
+        navItem.classList.remove('active');
+      }
+    }
+    
+    // 고객센터 드롭다운 토글
+    function toggleNavDropdown() {
+      const navDropdown = document.getElementById('navDropdownMenu');
+      const navItem = document.getElementById('customerCenterNav');
+      
+      navDropdown.classList.toggle('active');
+      navItem.classList.toggle('active');
+      
+      // 사용자 프로필 드롭다운 닫기
+      const dropdown = document.getElementById('dropdownMenu');
+      const userInfo = document.querySelector('.user-info');
+      if (dropdown && userInfo) {
+        dropdown.classList.remove('active');
+        userInfo.classList.remove('active');
+      }
+    }
+    
+    // 외부 클릭 시 드롭다운 닫기
+    document.addEventListener('click', function(event) {
+      const userProfile = document.querySelector('.user-profile');
+      const dropdown = document.getElementById('dropdownMenu');
+      const userInfo = document.querySelector('.user-info');
+      
+      const customerCenterNav = document.getElementById('customerCenterNav');
+      const navDropdown = document.getElementById('navDropdownMenu');
+      
+      // 사용자 프로필 드롭다운 닫기
+      if (userProfile && !userProfile.contains(event.target)) {
+        dropdown.classList.remove('active');
+        userInfo.classList.remove('active');
+      }
+      
+      // 고객센터 드롭다운 닫기
+      if (customerCenterNav && !customerCenterNav.contains(event.target)) {
+        navDropdown.classList.remove('active');
+        customerCenterNav.classList.remove('active');
+      }
+    });
+
+    // 프로필 보기
+    function viewProfile() {
+      const userName = localStorage.getItem('name');
+      const userEmail = localStorage.getItem('email');
+      const pharmacyName = localStorage.getItem('pharmacy_name');
+      
+      if (userName) {
+        let profileInfo = `프로필 정보\n\n이름: ${userName}\n이메일: ${userEmail}`;
+        if (pharmacyName) {
+          profileInfo += `\n약국명: ${pharmacyName}`;
+        }
+        alert(profileInfo);
+      }
+    }
+    
+    // 로그아웃
+    function logout() {
+      if (confirm('로그아웃 하시겠습니까?')) {
+        localStorage.clear();
+        window.location.href = '/login';
+      }
+    }
+
+    // 사용자 정보 표시
+    window.addEventListener('DOMContentLoaded', function() {
+      const userId = localStorage.getItem('userId');
+      const userName = localStorage.getItem('name');
+      const userEmail = localStorage.getItem('email');
+      const userPicture = localStorage.getItem('picture');
+      
+      // 사용자 이름 표시
+      if (userName) {
+        document.getElementById('userName').textContent = (userName || '게스트') + '님';
+        
+        // 프로필 사진이 있으면 표시, 없으면 이니셜 표시
+        if (userPicture) {
+          document.getElementById('userAvatar').innerHTML = `<img src="${userPicture}" alt="프로필">`;
+        } else {
+          // 이름의 첫 글자를 이니셜로 사용
+          const initial = (userName || 'G').charAt(0).toUpperCase();
+          document.getElementById('userInitial').textContent = initial;
+        }
+      }
+    });
+
+    // 페이지 로드 시 실행
+    loadTickets();
+  </script>
+</body>
+</html>

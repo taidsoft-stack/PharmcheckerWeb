@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>문의하기 - PharmChecker</title>
+  <link rel="stylesheet" href="/bulma.min.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      padding-top: 60px;
+    }
+
+    /* 헤더 네비게이션 */
+    .header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      z-index: 1000;
+      padding: 12px 0;
+    }
+
+    .header .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      font-size: 24px;
+      font-weight: 700;
+      color: #191f28;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nav-menu {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+
+    .nav-item {
+      position: relative;
+    }
+
+    .nav-link {
+      font-size: 15px;
+      font-weight: 500;
+      color: #191f28;
+      text-decoration: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      transition: background-color 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+
+    .nav-link:hover {
+      background-color: #f8f9fa;
+    }
+
+    .nav-dropdown-arrow {
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid #6b7684;
+      transition: transform 0.2s;
+    }
+
+    .nav-item.active .nav-dropdown-arrow {
+      transform: rotate(180deg);
+    }
+
+    .nav-dropdown-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      min-width: 220px;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-10px);
+      transition: all 0.3s ease;
+      z-index: 9999;
+    }
+
+    .nav-dropdown-menu.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+
+    .nav-dropdown-item {
+      padding: 12px 20px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid #f0f0f0;
+      text-decoration: none;
+      color: #191f28;
+    }
+
+    .nav-dropdown-item:first-child {
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
+    }
+
+    .nav-dropdown-item:last-child {
+      border-bottom-left-radius: 12px;
+      border-bottom-right-radius: 12px;
+      border-bottom: none;
+    }
+
+    .nav-dropdown-item:hover {
+      background-color: #f8f9fa;
+    }
+
+    .nav-dropdown-item-icon {
+      font-size: 16px;
+    }
+
+    .nav-dropdown-item-text {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .user-profile {
+      position: relative;
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 16px;
+      border-radius: 24px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .user-info:hover {
+      background-color: #f8f9fa;
+    }
+
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .user-avatar img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    .user-name {
+      font-size: 15px;
+      font-weight: 500;
+      color: #191f28;
+    }
+
+    .dropdown-arrow {
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid #6b7684;
+      transition: transform 0.2s;
+    }
+
+    .user-info.active .dropdown-arrow {
+      transform: rotate(180deg);
+    }
+
+    .dropdown-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      min-width: 200px;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-10px);
+      transition: all 0.3s ease;
+      z-index: 9999;
+    }
+
+    .dropdown-menu.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+      display: block;
+    }
+
+    .dropdown-item {
+      padding: 14px 20px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .dropdown-item:first-child {
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
+    }
+
+    .dropdown-item:last-child {
+      border-bottom-left-radius: 12px;
+      border-bottom-right-radius: 12px;
+      border-bottom: none;
+    }
+
+    .dropdown-item:hover {
+      background-color: #f8f9fa;
+    }
+
+    .dropdown-item-icon {
+      font-size: 18px;
+    }
+
+    .dropdown-item-text {
+      font-size: 14px;
+      color: #191f28;
+      font-weight: 500;
+    }
+
+    .dropdown-item.logout {
+      color: #e74c3c;
+    }
+
+    .dropdown-item.logout:hover {
+      background-color: #fee;
+    }
+
+    .dropdown-item.logout .dropdown-item-text {
+      color: #e74c3c;
+    }
+
+    .form-section {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .file-upload-area {
+      border: 2px dashed #dbdbdb;
+      border-radius: 4px;
+      padding: 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+      background: #f9f9f9;
+    }
+    .file-upload-area:hover {
+      border-color: #3273dc;
+      background: #f0f7ff;
+    }
+    .file-upload-area.is-dragover {
+      border-color: #3273dc;
+      background: #e8f4ff;
+    }
+    .file-list {
+      margin-top: 1rem;
+    }
+    .file-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem;
+      background: white;
+      border: 1px solid #dbdbdb;
+      border-radius: 4px;
+      margin-bottom: 0.5rem;
+    }
+    .file-item-info {
+      flex: 1;
+      display: flex;
+      align-items: center;
+    }
+    .file-item-name {
+      font-weight: 500;
+      margin-right: 0.5rem;
+    }
+    .file-item-size {
+      font-size: 0.85rem;
+      color: #7a7a7a;
+    }
+    .file-item-remove {
+      cursor: pointer;
+      color: #f14668;
+      font-weight: 600;
+      padding: 0.25rem 0.75rem;
+    }
+    .file-item-remove:hover {
+      text-decoration: underline;
+    }
+    .info-box {
+      background: #f0f7ff;
+      border-left: 4px solid #3273dc;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      border-radius: 4px;
+    }
+    .char-counter {
+      font-size: 0.85rem;
+      color: #7a7a7a;
+      text-align: right;
+      margin-top: 0.25rem;
+    }
+    .char-counter.is-danger {
+      color: #f14668;
+      font-weight: 600;
+    }
+    .submit-button-container {
+      position: sticky;
+      bottom: 0;
+      background: white;
+      padding: 1rem 0;
+      border-top: 1px solid #dbdbdb;
+      margin-top: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <!-- 헤더 -->
+  <header class="header">
+    <div class="container">
+      <a href="/pharmchecker" class="logo" style="text-decoration: none;">
+        <span>TAID SOFT</span>
+      </a>
+      
+      <div class="nav-menu">
+        <!-- 고객센터 메뉴 -->
+        <div class="nav-item" id="customerCenterNav">
+          <div class="nav-link" onclick="toggleNavDropdown()">
+            <span>고객센터</span>
+            <div class="nav-dropdown-arrow"></div>
+          </div>
+          <div class="nav-dropdown-menu" id="navDropdownMenu">
+            <a href="/support/tickets" class="nav-dropdown-item">
+              <span class="nav-dropdown-item-icon">✍️</span>
+              <span class="nav-dropdown-item-text">문의하기</span>
+            </a>
+            <a href="/support/faq" class="nav-dropdown-item">
+              <span class="nav-dropdown-item-icon">❓</span>
+              <span class="nav-dropdown-item-text">FAQ</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- 사용자 프로필 -->
+        <div class="user-profile">
+          <div class="user-info" onclick="toggleDropdown()">
+            <div class="user-avatar" id="userAvatar">
+              <span id="userInitial">U</span>
+            </div>
+            <span class="user-name" id="userName">게스트</span>
+            <div class="dropdown-arrow"></div>
+          </div>
+          <div class="dropdown-menu" id="dropdownMenu">
+            <div class="dropdown-item" onclick="window.location.href='/my-subscription'">
+              <span class="dropdown-item-icon">📋</span>
+              <span class="dropdown-item-text">내 구독 정보</span>
+            </div>
+            <div class="dropdown-item" onclick="window.location.href='/payment-history'">
+              <span class="dropdown-item-icon">💳</span>
+              <span class="dropdown-item-text">결제 내역</span>
+            </div>
+            <div class="dropdown-item" onclick="viewProfile()">
+              <span class="dropdown-item-icon">👤</span>
+              <span class="dropdown-item-text">프로필 보기</span>
+            </div>
+            <div class="dropdown-item logout" onclick="logout()">
+              <span class="dropdown-item-icon">🚪</span>
+              <span class="dropdown-item-text">로그아웃</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <section class="section">
+    <div class="container form-section">
+      <h1 class="title">문의하기</h1>
+      <p class="subtitle">궁금하신 사항이나 문제가 있으시면 언제든지 문의해주세요.</p>
+
+      <div class="info-box">
+        <p><strong>📞 고객센터 전화:</strong> 1588-8989 (평일 09:00 - 18:00)</p>
+        <p style="margin-top: 0.5rem; font-size: 0.9rem; color: #7a7a7a;">
+          긴급한 문제는 전화로 문의하시면 더 빠른 도움을 받으실 수 있습니다.
+        </p>
+      </div>
+
+      <form id="ticket-form">
+        <!-- 문의 유형 (항상 question으로 고정) -->
+        <input type="hidden" name="ticket_type" id="ticket_type" value="question">
+
+        <!-- 제목 -->
+        <div class="field">
+          <label class="label">제목 <span style="color: #f14668;">*</span></label>
+          <div class="control">
+            <input class="input" type="text" name="title" id="title" placeholder="문의 제목을 입력해주세요" maxlength="200" required>
+          </div>
+          <p class="char-counter" id="title-counter">0 / 200</p>
+        </div>
+
+        <!-- 내용 -->
+        <div class="field">
+          <label class="label">내용 <span style="color: #f14668;">*</span></label>
+          <div class="control">
+            <textarea class="textarea" name="content" id="content" placeholder="문의 내용을 자세히 입력해주세요" rows="10" maxlength="5000" required></textarea>
+          </div>
+          <p class="char-counter" id="content-counter">0 / 5000</p>
+        </div>
+
+        <!-- 첨부파일 -->
+        <div class="field">
+          <label class="label">첨부파일 (선택사항)</label>
+          <div class="file-upload-area" id="file-upload-area">
+            <p style="font-size: 1.2rem; margin-bottom: 0.5rem;">📎</p>
+            <p><strong>파일을 드래그하거나 클릭하여 선택해주세요</strong></p>
+            <p style="font-size: 0.85rem; color: #7a7a7a; margin-top: 0.5rem;">
+              최대 5개, 각 10MB 이하 (이미지, PDF, 문서, 압축파일 등)
+            </p>
+            <input type="file" id="file-input" name="attachments" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip" style="display: none;">
+          </div>
+          <div class="file-list" id="file-list"></div>
+        </div>
+
+        <!-- 제출 버튼 -->
+        <div class="submit-button-container">
+          <div class="field is-grouped">
+            <div class="control is-expanded">
+              <button type="submit" class="button is-primary is-fullwidth" id="submit-button">
+                <span>문의 등록</span>
+              </button>
+            </div>
+            <div class="control">
+              <a href="/support/tickets" class="button is-light">취소</a>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <script>
+    let selectedFiles = [];
+    const maxFiles = 5;
+    const maxFileSize = 10 * 1024 * 1024; // 10MB
+
+    // 폼 요소
+    const form = document.getElementById('ticket-form');
+    const titleInput = document.getElementById('title');
+    const contentInput = document.getElementById('content');
+    const fileUploadArea = document.getElementById('file-upload-area');
+    const fileInput = document.getElementById('file-input');
+    const fileList = document.getElementById('file-list');
+    const submitButton = document.getElementById('submit-button');
+
+    // 글자 수 카운터
+    titleInput.addEventListener('input', () => {
+      updateCharCounter('title', 200);
+    });
+
+    contentInput.addEventListener('input', () => {
+      updateCharCounter('content', 5000);
+    });
+
+    function updateCharCounter(fieldId, maxLength) {
+      const input = document.getElementById(fieldId);
+      const counter = document.getElementById(`${fieldId}-counter`);
+      const length = input.value.length;
+      counter.textContent = `${length} / ${maxLength}`;
+      
+      if (length > maxLength * 0.9) {
+        counter.classList.add('is-danger');
+      } else {
+        counter.classList.remove('is-danger');
+      }
+    }
+
+    // 파일 업로드 영역 클릭
+    fileUploadArea.addEventListener('click', () => {
+      fileInput.click();
+    });
+
+    // 파일 선택
+    fileInput.addEventListener('change', (e) => {
+      handleFiles(e.target.files);
+      fileInput.value = ''; // 초기화 (같은 파일 재선택 가능)
+    });
+
+    // 드래그 앤 드롭
+    fileUploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      fileUploadArea.classList.add('is-dragover');
+    });
+
+    fileUploadArea.addEventListener('dragleave', () => {
+      fileUploadArea.classList.remove('is-dragover');
+    });
+
+    fileUploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      fileUploadArea.classList.remove('is-dragover');
+      handleFiles(e.dataTransfer.files);
+    });
+
+    // 파일 처리
+    function handleFiles(files) {
+      const filesArray = Array.from(files);
+
+      // 파일 개수 체크
+      if (selectedFiles.length + filesArray.length > maxFiles) {
+        alert(`최대 ${maxFiles}개의 파일만 첨부할 수 있습니다.`);
+        return;
+      }
+
+      // 각 파일 검증 및 추가
+      for (const file of filesArray) {
+        // 파일 크기 체크
+        if (file.size > maxFileSize) {
+          alert(`${file.name}은(는) 파일 크기가 10MB를 초과합니다.`);
+          continue;
+        }
+
+        // 중복 체크
+        if (selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
+          alert(`${file.name}은(는) 이미 추가되었습니다.`);
+          continue;
+        }
+
+        selectedFiles.push(file);
+      }
+
+      renderFileList();
+    }
+
+    // 파일 목록 렌더링
+    function renderFileList() {
+      if (selectedFiles.length === 0) {
+        fileList.innerHTML = '';
+        return;
+      }
+
+      const filesHtml = selectedFiles.map((file, index) => `
+        <div class="file-item">
+          <div class="file-item-info">
+            <span class="file-item-name">📎 ${escapeHtml(file.name)}</span>
+            <span class="file-item-size">(${formatFileSize(file.size)})</span>
+          </div>
+          <span class="file-item-remove" onclick="removeFile(${index})">삭제</span>
+        </div>
+      `).join('');
+
+      fileList.innerHTML = filesHtml;
+    }
+
+    // 파일 삭제
+    function removeFile(index) {
+      selectedFiles.splice(index, 1);
+      renderFileList();
+    }
+
+    // 파일 크기 포맷
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    // HTML 이스케이프
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // 폼 제출
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      // 버튼 비활성화
+      submitButton.disabled = true;
+      submitButton.classList.add('is-loading');
+
+      try {
+        const userId = localStorage.getItem('userId');
+        if (!userId) {
+          alert('로그인이 필요합니다.');
+          window.location.href = '/login';
+          return;
+        }
+
+        // FormData 생성
+        const formData = new FormData();
+        formData.append('ticket_type', document.getElementById('ticket_type').value);
+        formData.append('title', titleInput.value.trim());
+        formData.append('content', contentInput.value.trim());
+
+        // 첨부파일 추가
+        for (const file of selectedFiles) {
+          formData.append('attachments', file);
+        }
+
+        // API 요청
+        const response = await fetch('/support/api/tickets', {
+          method: 'POST',
+          headers: {
+            'X-User-Id': userId
+          },
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || '문의 등록에 실패했습니다.');
+        }
+
+        // 성공 시 문의 내역 페이지로 이동
+        alert(data.message || '문의가 등록되었습니다.');
+        window.location.href = '/support/tickets';
+      } catch (error) {
+        console.error('Error submitting ticket:', error);
+        alert(error.message);
+        
+        // 버튼 활성화
+        submitButton.disabled = false;
+        submitButton.classList.remove('is-loading');
+      }
+    });
+  </script>
+
+  <script>
+    // 헤더 공통 JavaScript
+    function toggleDropdown() {
+      const dropdown = document.getElementById('dropdownMenu');
+      const userInfo = document.querySelector('.user-info');
+      
+      if (dropdown && userInfo) {
+        dropdown.classList.toggle('active');
+        userInfo.classList.toggle('active');
+        
+        const navDropdown = document.getElementById('navDropdownMenu');
+        const navItem = document.getElementById('customerCenterNav');
+        if (navDropdown && navItem) {
+          navDropdown.classList.remove('active');
+          navItem.classList.remove('active');
+        }
+      }
+    }
+    
+    function toggleNavDropdown() {
+      const navDropdown = document.getElementById('navDropdownMenu');
+      const navItem = document.getElementById('customerCenterNav');
+      
+      if (navDropdown && navItem) {
+        navDropdown.classList.toggle('active');
+        navItem.classList.toggle('active');
+      }
+      
+      const dropdown = document.getElementById('dropdownMenu');
+      const userInfo = document.querySelector('.user-info');
+      if (dropdown && userInfo) {
+        dropdown.classList.remove('active');
+        userInfo.classList.remove('active');
+      }
+    }
+    
+    document.addEventListener('click', function(event) {
+      const userProfile = document.querySelector('.user-profile');
+      const dropdown = document.getElementById('dropdownMenu');
+      const userInfo = document.querySelector('.user-info');
+      const customerCenterNav = document.getElementById('customerCenterNav');
+      const navDropdown = document.getElementById('navDropdownMenu');
+      
+      if (userProfile && !userProfile.contains(event.target)) {
+        if (dropdown) dropdown.classList.remove('active');
+        if (userInfo) userInfo.classList.remove('active');
+      }
+      
+      if (customerCenterNav && !customerCenterNav.contains(event.target)) {
+        if (navDropdown) navDropdown.classList.remove('active');
+        if (customerCenterNav) customerCenterNav.classList.remove('active');
+      }
+    });
+
+    function viewProfile() {
+      const userName = localStorage.getItem('name');
+      const userEmail = localStorage.getItem('email');
+      const pharmacyName = localStorage.getItem('pharmacy_name');
+      
+      if (userName) {
+        let profileInfo = `프로필 정보\n\n이름: ${userName}\n이메일: ${userEmail}`;
+        if (pharmacyName) profileInfo += `\n약국명: ${pharmacyName}`;
+        alert(profileInfo);
+      }
+    }
+    
+    function logout() {
+      if (confirm('로그아웃 하시겠습니까?')) {
+        localStorage.clear();
+        window.location.href = '/login';
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', function() {
+      const userName = localStorage.getItem('name');
+      const userPicture = localStorage.getItem('picture');
+      
+      const userNameEl = document.getElementById('userName');
+      const userAvatarEl = document.getElementById('userAvatar');
+      const userInitialEl = document.getElementById('userInitial');
+      
+      if (userNameEl && userName) {
+        userNameEl.textContent = userName + '님';
+        
+        if (userPicture && userAvatarEl) {
+          userAvatarEl.innerHTML = `<img src="${userPicture}" alt="프로필">`;
+        } else if (userInitialEl) {
+          const initial = (userName || 'G').charAt(0).toUpperCase();
+          userInitialEl.textContent = initial;
+        }
+      }
+    });
+  </script>
+</body>
+</html>

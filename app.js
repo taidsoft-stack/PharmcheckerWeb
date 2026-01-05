@@ -7,6 +7,7 @@ require('dotenv').config();
 
 // routes는 항상 상대 경로로 require (번들링 시점에 해결됨)
 var indexRouter = require("./routes/index");
+var supportRouter = require("./routes/support");
 
 var app = express();
 
@@ -29,6 +30,7 @@ const publicPath = path.join(__dirname, 'public');
 app.use(express.static(publicPath));
 
 app.use("/", indexRouter);
+app.use("/support", supportRouter);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {

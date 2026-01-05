@@ -1,0 +1,2 @@
+This is a temporary reference file for common header code.
+Not to be used directly - just for reference during bulk updates.
