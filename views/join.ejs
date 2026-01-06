@@ -336,6 +336,7 @@
   </div>
 
   <script>
+    let authUserId = '';
     let userEmail = '';
     let userName = '';
     let userPicture = '';
@@ -345,18 +346,39 @@
       console.log("Encoded JWT ID token: " + response.credential);
       
       try {
+        // JWT 파싱
         const payload = parseJwt(response.credential);
         console.log("User info:", payload);
         
         userEmail = payload.email;
         userName = payload.name;
         userPicture = payload.picture || '';
+
+        // 백엔드에서 auth.users.id 획득
+        const authResponse = await fetch('/api/auth/get-user-id', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            email: userEmail,
+            name: userName,
+            picture: userPicture
+          })
+        });
+
+        const authData = await authResponse.json();
+
+        if (!authResponse.ok || !authData.success) {
+          alert(authData.message || '인증에 실패했습니다.');
+          return;
+        }
+
+        authUserId = authData.userId;
+        const isExistingUser = authData.isExistingUser;
+
+        console.log('Auth User ID:', authUserId);
+        console.log('Is Existing User:', isExistingUser);
         
-        // 이메일 중복 확인 (이미 가입된 회원인지 체크)
-        const emailCheckResponse = await fetch(`/api/check-email/${encodeURIComponent(userEmail)}`);
-        const emailCheckData = await emailCheckResponse.json();
-        
-        if (emailCheckData.exists) {
+        if (isExistingUser) {
           // 이미 가입된 계정
           alert('이미 가입하신 계정입니다.\n로그인 페이지로 이동합니다.');
           window.location.href = '/login';
@@ -583,7 +605,7 @@
       
       // 폼 데이터 수집
       const formData = {
-        email: document.getElementById('email').value,
+        authUserId: authUserId,
         pharmacistName: document.getElementById('pharmacistName').value,
         pharmacistPhone: document.getElementById('pharmacistPhone').value,
         businessNumber: document.getElementById('businessNumber').value,

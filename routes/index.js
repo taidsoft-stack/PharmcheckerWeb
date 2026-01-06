@@ -2,6 +2,13 @@ const express = require("express");
 const got = require("got");
 const { v4: uuidv4 } = require('uuid');
 const supabase = require('../config/supabase');
+const { createClient } = require('@supabase/supabase-js');
+
+// Supabase Admin Client (서비스 키 사용)
+const supabaseAdmin = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 // 토스페이먼츠 시크릿 키 (환경 변수에서 로드)
 const TOSS_SECRET_KEY = process.env.TOSS_SECRET_KEY || 'test_sk_zXLkKEypNArWmo50nX3lmeaxYG5R';
@@ -42,11 +49,226 @@ router.get('/join', function (req, res) {
   res.render('join');
 });
 
+// 회원탈퇴 페이지
+router.get('/withdraw', function (req, res) {
+  res.render('withdraw');
+});
+
+// 회원탈퇴 API
+router.post('/api/user/withdraw', async function (req, res) {
+  try {
+    const { userId, reason } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: '사용자 정보를 찾을 수 없습니다.'
+      });
+    }
+
+    console.log('회원탈퇴 요청:', userId, '사유:', reason);
+
+    // 1. public.users에서 사용자 조회
+    const { data: user, error: getUserError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (getUserError || !user) {
+      console.error('사용자 조회 실패:', getUserError);
+      return res.status(404).json({
+        success: false,
+        message: '사용자를 찾을 수 없습니다.'
+      });
+    }
+
+    // 2. 활성 구독 조회 및 취소
+    const { data: activeSubscriptions } = await supabase
+      .from('user_subscriptions')
+      .select('*')
+      .eq('user_id', userId)
+      .in('status', ['active', 'trial']);
+
+    if (activeSubscriptions && activeSubscriptions.length > 0) {
+      // 구독 취소 처리
+      const { error: cancelError } = await supabase
+        .from('user_subscriptions')
+        .update({
+          status: 'cancelled',
+          canceled_at: new Date().toISOString()
+        })
+        .eq('user_id', userId)
+        .in('status', ['active', 'trial']);
+
+      if (cancelError) {
+        console.error('구독 취소 실패:', cancelError);
+      } else {
+        console.log('활성 구독 취소 완료:', activeSubscriptions.length, '건');
+      }
+    }
+
+    // 3. public.users 개인정보 익명화 (법적 "즉시 파기" 시점)
+    // 사업자번호는 결제·세무 목적으로 5년 보관 (전자상거래법·세법)
+    const { error: anonymizeError } = await supabase
+      .from('users')
+      .update({
+        pharmacist_name: '(탈퇴한 사용자)',
+        pharmacist_phone: '000-0000-0000',
+        // business_number: 보관 (결제·세무 목적)
+        pharmacy_name: '(삭제됨)',
+        pharmacy_phone: '000-0000-0000',
+        postcode: '00000',
+        address: '(삭제됨)',
+        detail_address: '(삭제됨)',
+        google_picture: null,
+        is_deleted: true,
+        deleted_at: new Date().toISOString(),
+        deleted_reason: reason || '사용자 요청',
+        deleted_by: null  // 본인 탈퇴
+      })
+      .eq('user_id', userId);
+
+    if (anonymizeError) {
+      console.error('개인정보 익명화 실패:', anonymizeError);
+      return res.status(500).json({
+        success: false,
+        message: '탈퇴 처리 중 오류가 발생했습니다.',
+        error: anonymizeError.message
+      });
+    }
+
+    console.log('개인정보 익명화 완료');
+
+    // 4. user_deletion_logs에 기록
+    const { error: logError } = await supabase
+      .from('user_deletion_logs')
+      .insert({
+        user_id: userId,
+        deleted_by: null,  // 본인 탈퇴
+        reason: reason || '사용자 요청',
+        ip_address: req.ip || req.connection.remoteAddress,
+        user_agent: req.headers['user-agent']
+      });
+
+    if (logError) {
+      console.error('탈퇴 로그 기록 실패:', logError);
+    } else {
+      console.log('탈퇴 로그 기록 완료');
+    }
+
+    // 5. auth.users 삭제 (Supabase Admin API)
+    try {
+      const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+      
+      if (deleteAuthError) {
+        console.error('auth.users 삭제 실패:', deleteAuthError);
+        // auth.users 삭제 실패해도 이미 익명화는 완료되었으므로 성공으로 처리
+      } else {
+        console.log('auth.users 삭제 완료');
+      }
+    } catch (authError) {
+      console.error('auth.users 삭제 예외:', authError);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: '회원 탈퇴가 완료되었습니다.'
+    });
+
+  } catch (error) {
+    console.error('회원탈퇴 처리 에러:', error);
+    res.status(500).json({
+      success: false,
+      message: '서버 오류가 발생했습니다.',
+      error: error.message
+    });
+  }
+});
+
+// Google 로그인 후 auth.users.id 획득 API
+router.post('/api/auth/get-user-id', async function (req, res) {
+  try {
+    const { email, name, picture, googleToken } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Google 인증 정보가 필요합니다.'
+      });
+    }
+
+    console.log('Google 로그인 시도:', email);
+
+    // 1. auth.users에서 이메일로 사용자 조회 (listUsers 사용)
+    const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+    
+    if (listError) {
+      console.error('auth.users 조회 실패:', listError);
+    }
+
+    const authUser = users?.find(u => u.email === email);
+    let authUserId;
+
+    if (authUser) {
+      // 이미 auth.users에 존재하는 경우
+      authUserId = authUser.id;
+      console.log('기존 auth.users 발견:', authUserId);
+    } else {
+      // auth.users에 없는 경우 새로 생성 (Admin API 사용)
+      const { data: newAuthUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+        email: email,
+        email_confirm: true,
+        user_metadata: {
+          name: name,
+          picture: picture
+        }
+      });
+
+      if (createError || !newAuthUser.user) {
+        console.error('auth.users 생성 실패:', createError);
+        return res.status(500).json({
+          success: false,
+          message: 'auth.users 생성에 실패했습니다.',
+          error: createError?.message
+        });
+      }
+
+      authUserId = newAuthUser.user.id;
+      console.log('새로운 auth.users 생성:', authUserId);
+    }
+
+    // 2. public.users에 이미 회원가입했는지 확인
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('user_id')
+      .eq('user_id', authUserId)
+      .single();
+
+    console.log('public.users 존재 여부:', !!existingUser);
+
+    res.status(200).json({
+      success: true,
+      userId: authUserId,
+      isExistingUser: !!existingUser,
+      email: email
+    });
+
+  } catch (error) {
+    console.error('인증 처리 에러:', error);
+    res.status(500).json({
+      success: false,
+      message: '서버 오류가 발생했습니다.',
+      error: error.message
+    });
+  }
+});
+
 // 회원가입 API
 router.post('/api/signup', async function (req, res) {
   try {
     const {
-      email,
+      authUserId,
       pharmacistName,
       pharmacistPhone,
       businessNumber,
@@ -59,8 +281,16 @@ router.post('/api/signup', async function (req, res) {
       googlePicture
     } = req.body;
 
+    // authUserId 검증 (Google 로그인 후 획득한 auth.users.id)
+    if (!authUserId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Google 로그인 후 회원가입을 진행해주세요.'
+      });
+    }
+
     // 필수 필드 검증
-    if (!email || !pharmacistName || !pharmacistPhone || !businessNumber || 
+    if (!pharmacistName || !pharmacistPhone || !businessNumber || 
         !pharmacyName || !pharmacyPhone || !postcode || !address) {
       return res.status(400).json({
         success: false,
@@ -68,17 +298,17 @@ router.post('/api/signup', async function (req, res) {
       });
     }
 
-    // 이메일 중복 체크
-    const { data: existingEmail } = await supabase
+    // 이미 회원가입한 사용자인지 확인 (user_id 중복 체크)
+    const { data: existingUser } = await supabase
       .from('users')
-      .select('email')
-      .eq('email', email)
+      .select('user_id')
+      .eq('user_id', authUserId)
       .single();
 
-    if (existingEmail) {
+    if (existingUser) {
       return res.status(409).json({
         success: false,
-        message: '이미 가입된 이메일입니다.'
+        message: '이미 회원가입이 완료된 계정입니다.'
       });
     }
 
@@ -87,6 +317,7 @@ router.post('/api/signup', async function (req, res) {
       .from('users')
       .select('business_number')
       .eq('business_number', businessNumber)
+      .eq('is_deleted', false)
       .single();
 
     if (existingBusiness) {
@@ -143,16 +374,15 @@ router.post('/api/signup', async function (req, res) {
       console.log('추천인 코드 검증 성공:', referralCode, '-> promotion:', validPromotion.promotionId);
     }
 
-    // UUID 생성
-    const userId = uuidv4();
+    // 3. auth.users.id를 그대로 사용 (UUID 일치)
+    const userId = authUserId;
 
-    // 사용자 데이터 삽입
+    // 4. 사용자 데이터 삽입
     const { data, error } = await supabase
       .from('users')
       .insert([
         {
           user_id: userId,
-          email: email,
           pharmacist_name: pharmacistName,
           pharmacist_phone: pharmacistPhone,
           business_number: businessNumber,
@@ -224,10 +454,22 @@ router.get('/api/check-email/:email', async function (req, res) {
   try {
     const { email } = req.params;
 
+    // auth.users에서 email 조회
+    const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
+    const authUser = users?.find(u => u.email === email);
+
+    if (!authUser) {
+      return res.json({
+        exists: false,
+        message: '사용 가능한 이메일입니다.'
+      });
+    }
+
+    // public.users에서 user_id로 조회
     const { data } = await supabase
       .from('users')
-      .select('email')
-      .eq('email', email)
+      .select('user_id')
+      .eq('user_id', authUser.id)
       .single();
 
     res.json({
@@ -278,20 +520,39 @@ router.post('/api/login', async function (req, res) {
       });
     }
 
-    // 사용자 조회
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .eq('is_active', true)
-      .single();
+    console.log('로그인 시도:', email);
 
-    if (error || !user) {
+    // 1. auth.users에서 이메일로 사용자 조회
+    const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+    const authUser = users?.find(u => u.email === email);
+
+    if (!authUser) {
       return res.status(401).json({
         success: false,
         message: '등록되지 않은 이메일입니다. 회원가입을 먼저 진행해주세요.'
       });
     }
+
+    console.log('auth.users 발견:', authUser.id);
+
+    // 2. public.users에서 user_id로 사용자 조회
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .eq('is_active', true)
+      .eq('is_deleted', false)
+      .single();
+
+    if (error || !user) {
+      console.error('public.users 조회 실패:', error);
+      return res.status(401).json({
+        success: false,
+        message: '등록되지 않은 이메일입니다. 회원가입을 먼저 진행해주세요.'
+      });
+    }
+
+    console.log('로그인 성공:', user.user_id);
 
     // 로그인 성공
     res.status(200).json({
@@ -299,7 +560,7 @@ router.post('/api/login', async function (req, res) {
       message: '로그인에 성공했습니다.',
       data: {
         userId: user.user_id,
-        email: user.email,
+        email: authUser.email,
         pharmacistName: user.pharmacist_name,
         pharmacyName: user.pharmacy_name,
         googlePicture: user.google_picture
@@ -495,7 +756,37 @@ router.get('/subscription/billing-success', async function (req, res) {
 
     console.log('빌링키 발급 성공:', { billingKey, cardCompany, cardLast4, expiresYear, expiresMonth });
 
-    // ===== 3단계: pending_user_promotions 조회 (추천인 코드 프로모션) =====
+    // ===== 3단계: 사업자번호로 무료 혜택 이력 체크 (악용 방지) =====
+    const { data: userData } = await supabase
+      .from('users')
+      .select('business_number')
+      .eq('user_id', userId)
+      .single();
+
+    let canUseFreePromotion = true;
+    let businessNumberClean = null;  // 스코프 확장
+    
+    if (userData && userData.business_number) {
+      businessNumberClean = userData.business_number.replace(/[^0-9]/g, '');
+      
+      // promotion_usage_history 조회
+      const { data: promotionHistory } = await supabaseAdmin
+        .from('promotion_usage_history')
+        .select('*')
+        .eq('business_number', businessNumberClean)
+        .eq('promotion_code', 'FREE_1MONTH')  // 실제 프로모션 코드
+        .single();
+
+      if (promotionHistory) {
+        // 이력이 존재하면 무조건 차단 (탈퇴 후 재가입해도 재사용 불가)
+        canUseFreePromotion = false;
+        console.log('무료 프로모션 사용 이력 존재 - 재사용 차단:', businessNumberClean);
+      } else {
+        console.log('무료 혜택 첫 사용 가능:', businessNumberClean);
+      }
+    }
+
+    // ===== 4단계: pending_user_promotions 조회 (추천인 코드 프로모션) =====
     const { data: pendingPromotion } = await supabase
       .from('pending_user_promotions')
       .select(`
@@ -503,6 +794,7 @@ router.get('/subscription/billing-success', async function (req, res) {
         promotion:promotion_id (*)
       `)
       .eq('user_id', userId)
+      .is('applied_at', null)  // 아직 미적용된 프로모션만 조회
       .single();
 
     let promotionId = null;
@@ -525,6 +817,12 @@ router.get('/subscription/billing-success', async function (req, res) {
 
       // 프로모션이 'free' 타입이면 금액을 0원으로 변경
       if (promotionData.discount_type === 'free') {
+        // 무료 혜택 사용 가능 여부 체크
+        if (!canUseFreePromotion) {
+          console.error('무료 혜택 이미 사용한 사업자번호');
+          return res.redirect('/subscription/payment-fail?message=' + encodeURIComponent('해당 사업자번호는 이미 무료 체험 혜택을 사용하셨습니다. 무료 체험은 사업자당 1회만 제공됩니다.'));
+        }
+        
         finalAmount = 0;
         console.log('무료 프로모션 적용: 결제 금액 0원');
       } else if (promotionData.discount_type === 'percent' && promotionData.discount_value) {
@@ -713,6 +1011,25 @@ router.get('/subscription/billing-success', async function (req, res) {
         effectiveStart: now.toISOString(),
         effectiveEnd: freeEndDate.toISOString()
       });
+
+      // ===== 무료 프로모션 사용 이력 저장 (promotion_usage_history) =====
+      if (businessNumberClean && promotionData.promotion_code) {
+        const { error: historyError } = await supabaseAdmin
+          .from('promotion_usage_history')
+          .insert({
+            business_number: businessNumberClean,
+            promotion_code: promotionData.promotion_code,  // 동적으로 실제 코드 사용
+            used_months: 1,  // 1개월 사용으로 시작
+            is_exhausted: true  // 무료 프로모션은 1회만 사용 가능하므로 즉시 소진
+          });
+
+        if (historyError && historyError.code !== '23505') { // 23505 = unique violation (이미 존재)
+          console.error('❌ promotion_usage_history INSERT 실패:', historyError);
+          // 이력 저장 실패는 치명적이지 않으므로 에러를 던지지 않고 로깅만
+        } else {
+          console.log('✅ 무료 프로모션 사용 이력 저장 완료:', businessNumberClean);
+        }
+      }
     } else {
       // 유료 결제: billing_payments에 저장
       const { error: paymentError } = await supabase
@@ -739,12 +1056,12 @@ router.get('/subscription/billing-success', async function (req, res) {
       console.log('유료 결제 기록 저장 완료:', { paymentKey: payment.paymentKey, amount: finalAmount });
     }
 
-    // ===== 8단계: pending_user_promotions 삭제 & referral_codes.used_count 증가 =====
+    // ===== 8단계: pending_user_promotions 적용 완료 표시 & referral_codes.used_count 증가 =====
     if (pendingPromotion && referralCodeId) {
-      // pending 삭제
+      // pending 적용 완료 표시 (삭제 대신 applied_at UPDATE)
       await supabase
         .from('pending_user_promotions')
-        .delete()
+        .update({ applied_at: new Date().toISOString() })
         .eq('pending_id', pendingPromotion.pending_id);
 
       // 추천인 코드 사용 횟수 증가 (referral_code_id 기준)
@@ -757,7 +1074,7 @@ router.get('/subscription/billing-success', async function (req, res) {
         console.warn('추천인 코드 사용 횟수 증가 실패 (max_uses 초과 또는 만료)');
       }
 
-      console.log('프로모션 적용 완료 및 pending 삭제');
+      console.log('프로모션 적용 완료 (applied_at 설정):', new Date().toISOString());
     }
 
     console.log('신규 구독 생성 완료:', subscriptionId);

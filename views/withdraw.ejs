@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>회원탈퇴 - PharmChecker</title>
+  <link rel="stylesheet" href="/bulma.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .withdraw-container {
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    .warning-box {
+      background: #fff3cd;
+      border: 2px solid #ffc107;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 30px;
+    }
+    .warning-box h2 {
+      color: #856404;
+      margin-bottom: 15px;
+    }
+    .warning-list {
+      list-style: none;
+      padding: 0;
+    }
+    .warning-list li {
+      padding: 10px 0;
+      border-bottom: 1px solid #ffeaa7;
+    }
+    .warning-list li:last-child {
+      border-bottom: none;
+    }
+    .warning-list li i {
+      color: #e74c3c;
+      margin-right: 10px;
+    }
+    .danger-box {
+      background: #f8d7da;
+      border: 2px solid #dc3545;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 30px;
+    }
+    .danger-box h3 {
+      color: #721c24;
+      margin-bottom: 10px;
+    }
+    .confirm-checkbox {
+      margin: 20px 0;
+    }
+    .withdraw-btn {
+      background: #dc3545;
+      color: white;
+      padding: 15px 30px;
+      font-size: 18px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      width: 100%;
+    }
+    .withdraw-btn:hover {
+      background: #c82333;
+    }
+    .withdraw-btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .cancel-btn {
+      background: #6c757d;
+      color: white;
+      padding: 15px 30px;
+      font-size: 18px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 10px;
+    }
+    .cancel-btn:hover {
+      background: #5a6268;
+    }
+  </style>
+</head>
+<body>
+  <%- include('_header-common.txt') %>
+
+  <div class="withdraw-container">
+    <h1 class="title is-3">
+      <i class="fas fa-user-minus"></i> 회원탈퇴
+    </h1>
+
+    <div class="warning-box">
+      <h2><i class="fas fa-exclamation-triangle"></i> 탈퇴 전 반드시 확인해주세요</h2>
+      <ul class="warning-list">
+        <li>
+          <i class="fas fa-times-circle"></i>
+          <strong>탈퇴 철회가 불가능합니다</strong><br>
+          개인정보보호법상 즉시 삭제 원칙에 따라 탈퇴 처리 후에는 어떠한 경우에도 복구할 수 없습니다.
+        </li>
+        <li>
+          <i class="fas fa-times-circle"></i>
+          <strong>구독 중인 플랜이 즉시 정지됩니다</strong><br>
+          현재 이용 중인 구독이 있다면 탈퇴와 동시에 모든 서비스 이용이 중단됩니다.
+        </li>
+        <li>
+          <i class="fas fa-times-circle"></i>
+          <strong>개인정보가 즉시 삭제됩니다</strong><br>
+          이름, 전화번호, 주소 등 모든 개인정보가 복구 불가능하게 즉시 삭제됩니다.
+        </li>
+        <li>
+          <i class="fas fa-info-circle"></i>
+          <strong>사업자등록번호는 결제·세무 목적으로 5년간 보관됩니다</strong><br>
+          전자상거래법 및 세법에 따라 사업자등록번호는 결제 내역과 함께 5년간 보관되지만,<br>
+          다른 개인정보와 연결되지 않아 귀하를 식별할 수 없습니다.
+        </li>
+        <li>
+          <i class="fas fa-times-circle"></i>
+          <strong>결제 내역은 법적 의무에 따라 5년간 보관됩니다</strong><br>
+          전자상거래법에 따라 거래 기록은 비식별 처리 후 보관됩니다. (개인 식별 불가)
+        </li>
+        <li>
+          <i class="fas fa-times-circle"></i>
+          <strong>무료 체험 혜택 재사용이 불가능합니다</strong><br>
+          탈퇴 후 재가입하더라도 사업자번호 기준으로 무료 혜택은 재제공되지 않습니다.
+        </li>
+      </ul>
+    </div>
+
+    <div class="danger-box">
+      <h3><i class="fas fa-ban"></i> 탈퇴 후에는 복구할 수 없습니다</h3>
+      <p>
+        회원 탈퇴 처리 후에는 어떠한 경우에도 계정 및 데이터를 복구할 수 없습니다.<br>
+        신중하게 결정해주시기 바랍니다.
+      </p>
+    </div>
+
+    <div class="box">
+      <h3 class="title is-5">탈퇴 사유 (선택)</h3>
+      <div class="field">
+        <div class="control">
+          <label class="radio">
+            <input type="radio" name="reason" value="서비스 불만족">
+            서비스 불만족
+          </label>
+        </div>
+        <div class="control">
+          <label class="radio">
+            <input type="radio" name="reason" value="사용 빈도 낮음">
+            사용 빈도 낮음
+          </label>
+        </div>
+        <div class="control">
+          <label class="radio">
+            <input type="radio" name="reason" value="비용 부담">
+            비용 부담
+          </label>
+        </div>
+        <div class="control">
+          <label class="radio">
+            <input type="radio" name="reason" value="다른 서비스 사용">
+            다른 서비스 사용
+          </label>
+        </div>
+        <div class="control">
+          <label class="radio">
+            <input type="radio" name="reason" value="기타">
+            기타
+          </label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label">상세 사유 (선택)</label>
+        <div class="control">
+          <textarea class="textarea" id="reasonDetail" placeholder="불편하셨던 점이나 개선이 필요한 부분을 알려주시면 더 나은 서비스를 만드는데 도움이 됩니다."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="confirm-checkbox">
+      <label class="checkbox">
+        <input type="checkbox" id="confirmCheck1">
+        위 유의사항을 모두 확인했으며, 탈퇴 시 모든 데이터가 삭제됨을 이해했습니다.
+      </label>
+    </div>
+
+    <div class="confirm-checkbox">
+      <label class="checkbox">
+        <input type="checkbox" id="confirmCheck2">
+        탈퇴 후에는 어떠한 경우에도 복구할 수 없음을 이해했습니다.
+      </label>
+    </div>
+
+    <button class="withdraw-btn" id="withdrawBtn" disabled onclick="handleWithdraw()">
+      <i class="fas fa-user-times"></i> 회원 탈퇴하기
+    </button>
+
+    <button class="cancel-btn" onclick="history.back()">
+      <i class="fas fa-arrow-left"></i> 취소
+    </button>
+  </div>
+
+  <script>
+    // 체크박스 확인
+    const check1 = document.getElementById('confirmCheck1');
+    const check2 = document.getElementById('confirmCheck2');
+    const withdrawBtn = document.getElementById('withdrawBtn');
+
+    function updateButtonState() {
+      withdrawBtn.disabled = !(check1.checked && check2.checked);
+    }
+
+    check1.addEventListener('change', updateButtonState);
+    check2.addEventListener('change', updateButtonState);
+
+    async function handleWithdraw() {
+      // 최종 확인
+      if (!confirm('정말로 회원 탈퇴를 진행하시겠습니까?\n\n이 작업은 취소할 수 없습니다.')) {
+        return;
+      }
+
+      // 로딩 표시
+      withdrawBtn.disabled = true;
+      withdrawBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 탈퇴 처리 중...';
+
+      try {
+        // 탈퇴 사유 수집
+        const selectedReason = document.querySelector('input[name="reason"]:checked');
+        const reasonDetail = document.getElementById('reasonDetail').value;
+
+        const reason = selectedReason 
+          ? `${selectedReason.value}${reasonDetail ? ': ' + reasonDetail : ''}`
+          : reasonDetail || '사유 없음';
+
+        // 사용자 정보 가져오기 (localStorage 사용)
+        const userId = localStorage.getItem('userId');
+        
+        if (!userId) {
+          alert('로그인 정보를 찾을 수 없습니다.');
+          window.location.href = '/login';
+          return;
+        }
+
+        // 탈퇴 API 호출
+        const response = await fetch('/api/user/withdraw', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            userId: userId,
+            reason: reason
+          })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+          // 세션 정리
+          sessionStorage.clear();
+          localStorage.clear();
+
+          alert('회원 탈퇴가 완료되었습니다.\n그동안 PharmChecker를 이용해주셔서 감사합니다.');
+          window.location.href = '/';
+        } else {
+          alert(result.message || '탈퇴 처리 중 오류가 발생했습니다.');
+          withdrawBtn.disabled = false;
+          withdrawBtn.innerHTML = '<i class="fas fa-user-times"></i> 회원 탈퇴하기';
+        }
+      } catch (error) {
+        console.error('탈퇴 처리 에러:', error);
+        alert('서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.');
+        withdrawBtn.disabled = false;
+        withdrawBtn.innerHTML = '<i class="fas fa-user-times"></i> 회원 탈퇴하기';
+      }
+    }
+  </script>
+</body>
+</html>
