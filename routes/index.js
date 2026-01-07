@@ -15,28 +15,14 @@ const TOSS_SECRET_KEY = process.env.TOSS_SECRET_KEY || 'test_sk_zXLkKEypNArWmo50
 
 const router = express.Router();
 
-// 첫 화면 - 세션 체크 후 라우팅
+// 첫 화면 - 세션 체크 후 라우팅 (쿠키 기반)
 router.get('/', function (req, res) {
-  // 클라이언트 사이드에서 세션 체크하도록 임시 페이지 렌더링
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <title>PharmChecker</title>
-    </head>
-    <body>
-      <script>
-        const user = JSON.parse(sessionStorage.getItem('user') || '{}');
-        if (user.userId) {
-          window.location.href = '/pharmchecker';
-        } else {
-          window.location.href = '/login';
-        }
-      </script>
-    </body>
-    </html>
-  `);
+  const token = req.cookies?.user_session_token || null;
+  if (token) {
+    return res.redirect('/pharmchecker');
+  } else {
+    return res.redirect('/login');
+  }
 });
 
 // 로그인 페이지
@@ -510,7 +496,7 @@ router.get('/api/check-business/:businessNumber', async function (req, res) {
 // 로그인 API
 router.post('/api/login', async function (req, res) {
   try {
-    const { email } = req.body;
+    const { email, idToken } = req.body;
 
     // 이메일 검증
     if (!email) {
@@ -554,10 +540,14 @@ router.post('/api/login', async function (req, res) {
 
     console.log('로그인 성공:', user.user_id);
 
+    // 세션 토큰 생성 (구글 ID 토큰을 그대로 사용)
+    const sessionToken = req.body.idToken || '';
+
     // 로그인 성공
     res.status(200).json({
       success: true,
       message: '로그인에 성공했습니다.',
+      session_token: sessionToken,
       data: {
         userId: user.user_id,
         email: authUser.email,
@@ -698,18 +688,127 @@ router.get('/update-payment', function (req, res) {
 });
 
 // 구독 결제 페이지
-router.get('/subscription/payment', function (req, res) {
-  res.render('subscription-payment', {
-    tossClientKey: process.env.TOSS_CLIENT_KEY || 'test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq'
-  });
+router.get('/subscription/payment', async function (req, res) {
+  try {
+    const userId = req.query.userId;
+    const planId = req.query.planId;
+    
+    console.log('🔍 /subscription/payment 접근:', { userId, planId });
+    
+    if (!userId || !planId) {
+      console.log('❌ userId 또는 planId 없음');
+      return res.redirect('/subscription/plans');
+    }
+
+    // ===== 플랜 정보 조회 =====
+    const { data: planData, error: planError } = await supabase
+      .from('subscription_plans')
+      .select('plan_name, monthly_price')
+      .eq('plan_id', planId)
+      .single();
+
+    console.log('📋 플랜 조회 결과:', { planData, planError });
+
+    if (!planData) {
+      console.log('❌ 플랜 정보 없음, 리다이렉트');
+      return res.redirect('/subscription/plans');
+    }
+
+    // ===== 사용자 정보 조회 =====
+    const { data: userData } = await supabase
+      .from('users')
+      .select('business_number')
+      .eq('user_id', userId)
+      .single();
+
+    let canUseFreePromotion = true;
+    let availablePromotions = [];
+
+    // ===== 사업자번호로 무료 프로모션 이력 체크 =====
+    if (userData && userData.business_number) {
+      const businessNumberClean = userData.business_number.replace(/[^0-9]/g, '');
+      
+      const { data: promotionHistory } = await supabaseAdmin
+        .from('promotion_usage_history')
+        .select('*')
+        .eq('business_number', businessNumberClean)
+        .eq('promotion_code', 'FREE_1MONTH')
+        .single();
+
+      if (promotionHistory) {
+        canUseFreePromotion = false;
+      }
+    }
+
+    // ===== pending_user_promotions에서 사용 가능한 프로모션 목록 조회 =====
+    const { data: pendingPromotions } = await supabaseAdmin
+      .from('pending_user_promotions')
+      .select(`
+        promotion_id,
+        referral_code_id,
+        subscription_promotions (
+          promotion_name,
+          discount_type,
+          discount_value,
+          free_months,
+          promotion_code
+        ),
+        referral_codes (
+          code
+        )
+      `)
+      .eq('user_id', userId)
+      .is('applied_at', null)
+      .order('created_at', { ascending: false });
+
+    if (pendingPromotions && pendingPromotions.length > 0) {
+      pendingPromotions.forEach(promo => {
+        const promotionData = promo.subscription_promotions;
+        
+        // 무료 프로모션이고 이미 사용한 경우 제외
+        if (promotionData.discount_type === 'free' && !canUseFreePromotion) {
+          return;
+        }
+        
+        availablePromotions.push({
+          promotion_id: promo.promotion_id,
+          referral_code_id: promo.referral_code_id,
+          promotion_name: promotionData.promotion_name,
+          promotion_code: promotionData.promotion_code,
+          discount_type: promotionData.discount_type,
+          discount_value: promotionData.discount_value,
+          free_months: promotionData.free_months,
+          referral_code: promo.referral_codes?.code || null
+        });
+      });
+    }
+
+    res.render('subscription-payment', {
+      tossClientKey: process.env.TOSS_CLIENT_KEY || 'test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq',
+      planName: planData.plan_name,
+      originalPrice: planData.monthly_price,
+      availablePromotions: availablePromotions,
+      userId: userId,
+      planId: planId
+    });
+
+  } catch (error) {
+    console.error('/subscription/payment 에러:', error);
+    res.redirect('/subscription/plans');
+  }
 });
 
 // 자동결제 카드 등록 성공 처리 (빌링키 발급)
 router.get('/subscription/billing-success', async function (req, res) {
   try {
-    const { authKey, customerKey, planId, userId, amount } = req.query;
+    const { authKey, customerKey, planId, userId, amount, originalPrice, promotionId, referralCodeId } = req.query;
+    
+    // amount: 프로모션 적용된 최종 금액 (프론트엔드에서 계산됨)
+    // originalPrice: 플랜의 원래 가격
+    const finalAmount = parseInt(amount);
+    const planOriginalPrice = originalPrice ? parseInt(originalPrice) : finalAmount;
 
-    console.log('빌링키 발급 시작:', { authKey, customerKey, planId, userId, amount });
+    console.log('빌링키 발급 시작:', { authKey, customerKey, planId, userId, finalAmount, planOriginalPrice, promotionId, referralCodeId });
 
     // ===== 1단계: 중복 구독 확인 (이미 활성 구독이 있으면 에러) =====
     const { data: existingSubscription } = await supabase
@@ -756,95 +855,53 @@ router.get('/subscription/billing-success', async function (req, res) {
 
     console.log('빌링키 발급 성공:', { billingKey, cardCompany, cardLast4, expiresYear, expiresMonth });
 
-    // ===== 3단계: 사업자번호로 무료 혜택 이력 체크 (악용 방지) =====
+    // ===== 3단계: 프로모션 정보 조회 (promotionId가 있는 경우) =====
+    let promotionData = null;
+    
+    if (promotionId && promotionId !== '') {
+      const { data: promoData } = await supabaseAdmin
+        .from('subscription_promotions')
+        .select('*')
+        .eq('promotion_id', promotionId)
+        .single();
+      
+      if (promoData) {
+        promotionData = promoData;
+        console.log('프로모션 정보:', {
+          promotionId,
+          promotionName: promotionData.promotion_name,
+          discountType: promotionData.discount_type,
+          freeMonths: promotionData.free_months
+        });
+      }
+    }
+
+    // ===== 4단계: 사업자번호 조회 (무료 프로모션 이력 저장용) =====
     const { data: userData } = await supabase
       .from('users')
       .select('business_number')
       .eq('user_id', userId)
       .single();
 
-    let canUseFreePromotion = true;
-    let businessNumberClean = null;  // 스코프 확장
-    
+    let businessNumberClean = null;
     if (userData && userData.business_number) {
       businessNumberClean = userData.business_number.replace(/[^0-9]/g, '');
-      
-      // promotion_usage_history 조회
-      const { data: promotionHistory } = await supabaseAdmin
-        .from('promotion_usage_history')
-        .select('*')
-        .eq('business_number', businessNumberClean)
-        .eq('promotion_code', 'FREE_1MONTH')  // 실제 프로모션 코드
-        .single();
-
-      if (promotionHistory) {
-        // 이력이 존재하면 무조건 차단 (탈퇴 후 재가입해도 재사용 불가)
-        canUseFreePromotion = false;
-        console.log('무료 프로모션 사용 이력 존재 - 재사용 차단:', businessNumberClean);
-      } else {
-        console.log('무료 혜택 첫 사용 가능:', businessNumberClean);
-      }
     }
 
-    // ===== 4단계: pending_user_promotions 조회 (추천인 코드 프로모션) =====
-    const { data: pendingPromotion } = await supabase
-      .from('pending_user_promotions')
-      .select(`
-        *,
-        promotion:promotion_id (*)
-      `)
-      .eq('user_id', userId)
-      .is('applied_at', null)  // 아직 미적용된 프로모션만 조회
-      .single();
-
-    let promotionId = null;
-    let promotionData = null;
-    let referralCodeId = null;
-    let finalAmount = parseInt(amount);
-
-    if (pendingPromotion && pendingPromotion.promotion) {
-      promotionData = pendingPromotion.promotion;
-      promotionId = promotionData.promotion_id;
-      referralCodeId = pendingPromotion.referral_code_id;  // pending에서 직접 가져옴 (JOIN 불필요)
-      
-      console.log('프로모션 적용:', {
-        promotionId,
-        referralCodeId,
-        promotionName: promotionData.promotion_name,
-        discountType: promotionData.discount_type,
-        freeMonths: promotionData.free_months
-      });
-
-      // 프로모션이 'free' 타입이면 금액을 0원으로 변경
-      if (promotionData.discount_type === 'free') {
-        // 무료 혜택 사용 가능 여부 체크
-        if (!canUseFreePromotion) {
-          console.error('무료 혜택 이미 사용한 사업자번호');
-          return res.redirect('/subscription/payment-fail?message=' + encodeURIComponent('해당 사업자번호는 이미 무료 체험 혜택을 사용하셨습니다. 무료 체험은 사업자당 1회만 제공됩니다.'));
-        }
-        
-        finalAmount = 0;
-        console.log('무료 프로모션 적용: 결제 금액 0원');
-      } else if (promotionData.discount_type === 'percent' && promotionData.discount_value) {
-        finalAmount = Math.round(finalAmount * (1 - promotionData.discount_value / 100));
-        console.log(`${promotionData.discount_value}% 할인 적용: ${finalAmount}원`);
-      } else if (promotionData.discount_type === 'amount' && promotionData.discount_value) {
-        finalAmount = Math.max(0, finalAmount - promotionData.discount_value);
-        console.log(`${promotionData.discount_value}원 할인 적용: ${finalAmount}원`);
-      }
-    } else {
-      console.log('적용 가능한 프로모션 없음');
-    }
-
-    // ===== 4단계: 빌링키로 첫 결제 승인 =====
-    const orderId = 'SUB_' + userId.substring(0, 8) + '_' + Date.now();
-    
-    // 플랜 정보 조회
+    // ===== 5단계: 플랜 정보 조회 =====
     const { data: plan } = await supabase
       .from('subscription_plans')
       .select('*')
       .eq('plan_id', planId)
       .single();
+
+    if (!plan) {
+      throw new Error('플랜 정보를 찾을 수 없습니다.');
+    }
+
+    // ===== 6단계: orderId 생성 (0원 결제도 필요) =====
+    const orderId = 'SUB_' + userId.substring(0, 8) + '_' + Date.now();
+    console.log('orderId 생성:', orderId);
 
     let payment = null;
 
@@ -882,8 +939,11 @@ router.get('/subscription/billing-success', async function (req, res) {
 
     console.log('첫 결제 승인 성공:', { paymentKey: payment.paymentKey, orderId, amount: finalAmount });
 
-    // ===== 5단계: payment_methods에 카드 정보 저장 =====
+    // ===== 5단계: UUID 선언 (순서 중요!) =====
+    const subscriptionId = uuidv4();
     const paymentMethodId = uuidv4();
+
+    // ===== 6단계: payment_methods에 카드 정보 저장 =====
     const { error: paymentMethodError } = await supabase
       .from('payment_methods')
       .insert({
@@ -904,19 +964,18 @@ router.get('/subscription/billing-success', async function (req, res) {
 
     console.log('✅ payment_methods 저장 완료:', paymentMethodId);
 
-    // ===== 5단계: 구독 기간 계산 - 무료/유료 분리 =====
+    // ===== 7단계: 구독 기간 계산 =====
     const now = new Date();
-    const subscriptionId = uuidv4();
-    
     let subscriptionData;
     
-    if (finalAmount === 0) {
+    if (finalAmount === 0 && promotionData) {
       // 💡 무료 프로모션: current_period는 NULL, next_billing_at만 설정
+      // 예: 1/7 가입 → 2/6까지 무료, 2/7 00:00:00에 첫 유료 결제
       const freeEndDate = new Date(now);
       freeEndDate.setMonth(freeEndDate.getMonth() + promotionData.free_months);
-      freeEndDate.setHours(23, 59, 59, 999);
+      freeEndDate.setHours(0, 0, 0, 0);  // ✅ 다음 달 같은 날짜 자정
       
-      console.log(`무료 기간: ${now.toISOString()} ~ ${freeEndDate.toISOString()}`);
+      console.log(`무료 기간: ${now.toISOString()} ~ ${new Date(freeEndDate.getTime() - 1).toISOString()}`);
       console.log(`첫 유료 결제 예정: ${freeEndDate.toISOString()}`);
       
       subscriptionData = {
@@ -937,17 +996,21 @@ router.get('/subscription/billing-success', async function (req, res) {
       };
     } else {
       // 💰 유료 결제: 일반적인 결제 주기 설정
+      // 예: 1/7 00:00:00 결제 → 2/6 23:59:59까지 사용, 2/7 00:00:00에 다음 결제
       const currentPeriodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate(), 23, 59, 59, 999);
+      const nextBillingDate = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate(), 0, 0, 0, 0);
       
       // 월말 처리: 1/31 → 2/28(29), 3/31 → 4/30 등
-      if (nextMonth.getDate() !== now.getDate()) {
-        nextMonth.setDate(0);
-        nextMonth.setHours(23, 59, 59, 999);
+      if (nextBillingDate.getDate() !== now.getDate()) {
+        nextBillingDate.setDate(0);
+        nextBillingDate.setHours(0, 0, 0, 0);  // ✅ 다음 달 자정
       }
-      const currentPeriodEnd = nextMonth;
+      
+      // 현재 주기 종료일 = 다음 결제일 -1ms (2/6 23:59:59.999)
+      const currentPeriodEnd = new Date(nextBillingDate.getTime() - 1);
       
       console.log(`유료 결제 주기: ${currentPeriodStart.toISOString()} ~ ${currentPeriodEnd.toISOString()}`);
+      console.log(`다음 결제 예정: ${nextBillingDate.toISOString()}`);
       
       subscriptionData = {
         subscription_id: subscriptionId,
@@ -962,12 +1025,12 @@ router.get('/subscription/billing-success', async function (req, res) {
         customer_key: customerKey,
         current_period_start: currentPeriodStart.toISOString(),
         current_period_end: currentPeriodEnd.toISOString(),
-        next_billing_at: currentPeriodEnd.toISOString(),
+        next_billing_at: nextBillingDate.toISOString(),  // ✅ 다음 달 같은 날짜 자정
         is_first_billing: true,
       };
     }
 
-    // ===== 6단계: user_subscriptions 테이블에 구독 생성 =====
+    // ===== 8단계: user_subscriptions 테이블에 구독 생성 =====
     const { error: subscriptionError } = await supabase
       .from('user_subscriptions')
       .insert(subscriptionData);
@@ -979,12 +1042,15 @@ router.get('/subscription/billing-success', async function (req, res) {
 
     console.log('✅ user_subscriptions 생성 완료:', subscriptionId);
 
-    // ===== 7단계: 결제 기록 저장 (0원은 free_grants, 유료는 billing_payments) =====
-    if (finalAmount === 0) {
-      // 무료 프로모션: subscription_free_grants에 저장
-      const freeEndDate = new Date(now);
-      freeEndDate.setMonth(freeEndDate.getMonth() + promotionData.free_months);
-      freeEndDate.setHours(23, 59, 59, 999);
+    // ===== 9단계: 무료 프로모션 기록 저장 (subscription_free_grants) =====
+    if (finalAmount === 0 && promotionData) {
+      // 💡 effective_end = next_billing_at - 1ms (무료 종료 시점)
+      // 예: 1/7 가입, 1개월 무료 → 2/6 23:59:59.999까지 무료, 2/7 00:00:00 첫 결제
+      const nextBillingDate = new Date(now);
+      nextBillingDate.setMonth(nextBillingDate.getMonth() + promotionData.free_months);
+      nextBillingDate.setHours(0, 0, 0, 0);  // 다음 결제일 자정
+      
+      const freeEndDate = new Date(nextBillingDate.getTime() - 1);  // 1ms 빼기 (전날 23:59:59.999)
       
       const { error: freeGrantError } = await supabase
         .from('subscription_free_grants')
@@ -997,7 +1063,7 @@ router.get('/subscription/billing-success', async function (req, res) {
           free_months: promotionData.free_months,
           granted_at: new Date().toISOString(),
           effective_start: now.toISOString(),
-          effective_end: freeEndDate.toISOString(),
+          effective_end: freeEndDate.toISOString(),  // ✅ 2/6 23:59:59.999
         });
 
       if (freeGrantError) {
@@ -1005,66 +1071,81 @@ router.get('/subscription/billing-success', async function (req, res) {
         throw new Error(`무료 프로모션 기록 실패: ${freeGrantError.message}`);
       }
 
-      console.log('무료 프로모션 부여 기록 저장 완료:', {
+      console.log('✅ 무료 프로모션 부여 기록 저장 완료:', {
         userId,
         freeMonths: promotionData.free_months,
         effectiveStart: now.toISOString(),
-        effectiveEnd: freeEndDate.toISOString()
+        effectiveEnd: freeEndDate.toISOString(),
+        nextBilling: nextBillingDate.toISOString()
       });
 
-      // ===== 무료 프로모션 사용 이력 저장 (promotion_usage_history) =====
+      // 무료 프로모션 사용 이력 저장 (promotion_usage_history)
       if (businessNumberClean && promotionData.promotion_code) {
         const { error: historyError } = await supabaseAdmin
           .from('promotion_usage_history')
           .insert({
             business_number: businessNumberClean,
-            promotion_code: promotionData.promotion_code,  // 동적으로 실제 코드 사용
-            used_months: 1,  // 1개월 사용으로 시작
-            is_exhausted: true  // 무료 프로모션은 1회만 사용 가능하므로 즉시 소진
+            promotion_code: promotionData.promotion_code,
+            used_months: 1,
+            is_exhausted: true
           });
 
-        if (historyError && historyError.code !== '23505') { // 23505 = unique violation (이미 존재)
+        if (historyError && historyError.code !== '23505') {
           console.error('❌ promotion_usage_history INSERT 실패:', historyError);
-          // 이력 저장 실패는 치명적이지 않으므로 에러를 던지지 않고 로깅만
         } else {
           console.log('✅ 무료 프로모션 사용 이력 저장 완료:', businessNumberClean);
         }
       }
-    } else {
-      // 유료 결제: billing_payments에 저장
-      const { error: paymentError } = await supabase
-        .from('billing_payments')
-        .insert({
-          payment_id: uuidv4(),
-          subscription_id: subscriptionId,
-          user_id: userId,
-          order_id: orderId,
-          payment_key: payment.paymentKey,
-          billing_key: billingKey,
-          payment_method_id: paymentMethodId,
-          amount: finalAmount,
-          status: 'success',
-          requested_at: new Date().toISOString(),
-          approved_at: new Date().toISOString(),
-        });
-
-      if (paymentError) {
-        console.error('❌ billing_payments INSERT 실패:', paymentError);
-        throw new Error(`결제 기록 저장 실패: ${paymentError.message}`);
-      }
-
-      console.log('유료 결제 기록 저장 완료:', { paymentKey: payment.paymentKey, amount: finalAmount });
     }
 
-    // ===== 8단계: pending_user_promotions 적용 완료 표시 & referral_codes.used_count 증가 =====
-    if (pendingPromotion && referralCodeId) {
-      // pending 적용 완료 표시 (삭제 대신 applied_at UPDATE)
-      await supabase
+    // ===== 10단계: 결제 기록 저장 (billing_payments - 0원/유료 모두 기록) =====
+    // 📌 payment_key: 0원 결제는 NULL (PG 호출 안 함), 유료 결제는 토스에서 발급받음
+    const paymentData = {
+      payment_id: uuidv4(),
+      subscription_id: subscriptionId,
+      user_id: userId,
+      order_id: orderId,
+      payment_key: finalAmount === 0 ? null : payment.paymentKey,  // 0원은 NULL
+      billing_key: billingKey,
+      payment_method_id: paymentMethodId,
+      amount: finalAmount,
+      status: 'success',
+      requested_at: new Date().toISOString(),
+      approved_at: new Date().toISOString(),
+    };
+
+    const { error: paymentError } = await supabase
+      .from('billing_payments')
+      .insert(paymentData);
+
+    if (paymentError) {
+      console.error('❌ billing_payments INSERT 실패:', paymentError);
+      throw new Error(`결제 기록 저장 실패: ${paymentError.message}`);
+    }
+
+    console.log('✅ 결제 기록 저장 완료:', {
+      amount: finalAmount,
+      paymentKey: paymentData.payment_key || 'NULL (0원 결제)',
+      paymentType: finalAmount === 0 ? '무료 프로모션' : '유료 결제'
+    });
+
+    // ===== 11단계: pending_user_promotions 적용 완료 표시 & referral_codes.used_count 증가 =====
+    if (promotionId && promotionId !== '' && referralCodeId && referralCodeId !== '') {
+      // pending 적용 완료 표시 (applied_at UPDATE)
+      const { error: updateError } = await supabase
         .from('pending_user_promotions')
         .update({ applied_at: new Date().toISOString() })
-        .eq('pending_id', pendingPromotion.pending_id);
+        .eq('promotion_id', promotionId)
+        .eq('user_id', userId)
+        .is('applied_at', null);
 
-      // 추천인 코드 사용 횟수 증가 (referral_code_id 기준)
+      if (updateError) {
+        console.warn('pending_user_promotions 업데이트 실패:', updateError);
+      } else {
+        console.log('프로모션 적용 완료 (applied_at 설정):', new Date().toISOString());
+      }
+
+      // 추천인 코드 사용 횟수 증가
       const { data: incrementResult } = await supabase
         .rpc('increment_referral_code_usage', { p_referral_code_id: referralCodeId });
 
@@ -1073,8 +1154,6 @@ router.get('/subscription/billing-success', async function (req, res) {
       } else {
         console.warn('추천인 코드 사용 횟수 증가 실패 (max_uses 초과 또는 만료)');
       }
-
-      console.log('프로모션 적용 완료 (applied_at 설정):', new Date().toISOString());
     }
 
     console.log('신규 구독 생성 완료:', subscriptionId);
@@ -1547,16 +1626,21 @@ router.get('/api/subscription/my', async function (req, res) {
       return res.status(400).json({ success: false, message: '사용자 ID가 필요합니다.' });
     }
 
-    // 구독 정보 조회
+    // 구독 정보 조회 (.single() 대신 .maybeSingle() 사용)
     const { data: subscription, error: subError } = await supabase
       .from('user_subscriptions')
       .select('*, subscription_plans!user_subscriptions_billing_plan_id_fkey(plan_name, monthly_price)')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
-    if (subError || !subscription) {
+    if (subError) {
       console.error('구독 정보 조회 실패:', subError);
-      return res.json({ success: false, message: '구독 정보를 찾을 수 없습니다.' });
+      return res.json({ success: false, message: '구독 정보를 조회하는데 실패했습니다.' });
+    }
+
+    if (!subscription) {
+      // 구독 없음 - 정상 응답
+      return res.json({ success: false, message: '구독 정보가 없습니다.' });
     }
 
     // 카드 정보 조회

@@ -18,7 +18,8 @@ const supabase = createClient(
 const TOSS_SECRET_KEY = process.env.TOSS_SECRET_KEY;
 
 /**
- * 구독 기간 계산 (시분초 제거, 자정~23:59:59)
+ * 구독 기간 계산 (일자 기준: N일~N+1달 N-1일)
+ * 예: 1/7 결제 → 사용기간 1/7~2/6, 다음결제 2/7 00:00
  */
 function calculateNextPeriod(currentEndDate) {
   const prevEnd = new Date(currentEndDate);
@@ -26,18 +27,22 @@ function calculateNextPeriod(currentEndDate) {
   // 시작일: 이전 종료일의 다음날 자정
   const newPeriodStart = new Date(prevEnd.getFullYear(), prevEnd.getMonth(), prevEnd.getDate() + 1, 0, 0, 0, 0);
   
-  // 종료일: 다음달 같은 날짜 23:59:59 (월말 처리 포함)
-  const nextMonth = new Date(newPeriodStart.getFullYear(), newPeriodStart.getMonth() + 1, newPeriodStart.getDate(), 23, 59, 59, 999);
+  // 다음 결제일: 다음달 같은 날짜 자정 (월말 처리 포함)
+  const nextBillingDate = new Date(newPeriodStart.getFullYear(), newPeriodStart.getMonth() + 1, newPeriodStart.getDate(), 0, 0, 0, 0);
   
   // 월말 처리: 1/31 → 2/28(29), 3/31 → 4/30
-  if (nextMonth.getDate() !== newPeriodStart.getDate()) {
-    nextMonth.setDate(0); // 이전 달 마지막날
-    nextMonth.setHours(23, 59, 59, 999);
+  if (nextBillingDate.getDate() !== newPeriodStart.getDate()) {
+    nextBillingDate.setDate(0); // 이전 달 마지막날
+    nextBillingDate.setHours(0, 0, 0, 0);  // ✅ 자정
   }
+  
+  // 종료일 = 다음 결제일 -1ms (N+1달 N-1일 23:59:59.999)
+  const newPeriodEnd = new Date(nextBillingDate.getTime() - 1);
   
   return {
     start: newPeriodStart,
-    end: nextMonth
+    end: newPeriodEnd,
+    nextBillingAt: nextBillingDate  // ✅ 다음 결제일 추가
   };
 }
 
@@ -326,20 +331,22 @@ async function handleFreeTrialExpiration() {
           
           // 6. 첫 유료 주기 시작 - current_period 설정
           const firstPaidStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-          const firstPaidEnd = new Date(firstPaidStart.getFullYear(), firstPaidStart.getMonth() + 1, firstPaidStart.getDate(), 23, 59, 59, 999);
+          const firstPaidBillingDate = new Date(firstPaidStart.getFullYear(), firstPaidStart.getMonth() + 1, firstPaidStart.getDate(), 0, 0, 0, 0);
           
           // 월말 처리
-          if (firstPaidEnd.getDate() !== firstPaidStart.getDate()) {
-            firstPaidEnd.setDate(0);
-            firstPaidEnd.setHours(23, 59, 59, 999);
+          if (firstPaidBillingDate.getDate() !== firstPaidStart.getDate()) {
+            firstPaidBillingDate.setDate(0);
+            firstPaidBillingDate.setHours(0, 0, 0, 0);  // ✅ 자정
           }
+          
+          const firstPaidEnd = new Date(firstPaidBillingDate.getTime() - 1);  // ✅ -1ms
           
           await supabase
             .from('user_subscriptions')
             .update({
               current_period_start: firstPaidStart.toISOString(),
               current_period_end: firstPaidEnd.toISOString(),
-              next_billing_at: firstPaidEnd.toISOString(),
+              next_billing_at: firstPaidBillingDate.toISOString(),  // ✅ 다음달 자정
               is_first_billing: false,  // 첫 유료 결제 완료
               promotion_id: null,       // 프로모션 종료
               promotion_expires_at: null,
@@ -728,7 +735,7 @@ async function runRecurringBillingScheduler() {
               billing_plan_id: selectedPlan.plan_id,
               current_period_start: newPeriod.start.toISOString(),
               current_period_end: newPeriod.end.toISOString(),
-              next_billing_at: newPeriod.end.toISOString(),  // ⚠️ 다음 결제 예정일 갱신
+              next_billing_at: newPeriod.nextBillingAt.toISOString(),  // ✅ 다음달 자정
               is_first_billing: false,
               failed_at: null,  // 실패 기록 초기화
               grace_until: null,
@@ -738,6 +745,7 @@ async function runRecurringBillingScheduler() {
 
           console.log(`✅ 결제 성공: ${paymentResult.amount.toLocaleString()}원${paymentResult.isFree ? ' (무료 프로모션)' : ''}`);
           console.log(`   다음 주기: ${newPeriod.start.toISOString().split('T')[0]} ~ ${newPeriod.end.toISOString().split('T')[0]}`);
+          console.log(`   다음 결제: ${newPeriod.nextBillingAt.toISOString().split('T')[0]} 00:00`);
           console.log(`   다음 결제일: ${newPeriod.end.toISOString().split('T')[0]}`);
           successCount++;
 

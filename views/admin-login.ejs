@@ -4,138 +4,223 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>관리자 로그인 - PharmChecker</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
-    html, body {
-      height: 100%;
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
     }
     .login-container {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 450px;
+      width: 100%;
+      overflow: hidden;
+    }
+    .login-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 40px 30px;
+      text-align: center;
+    }
+    .login-header h1 {
+      font-size: 28px;
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+    .login-header p {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+    .logo {
+      width: 80px;
+      height: 80px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      margin: 0 auto 20px;
       display: flex;
       align-items: center;
       justify-content: center;
-      min-height: 100vh;
+      font-size: 40px;
     }
-    .login-box {
-      background: white;
-      border-radius: 8px;
-      padding: 3rem;
-      box-shadow: 0 20px 60px rgba(0,0,0,.3);
-      width: 100%;
-      max-width: 400px;
-    }
-    .login-title {
+    .login-content {
+      padding: 50px 40px;
       text-align: center;
-      margin-bottom: 2rem;
-      color: #363636;
     }
-    .login-icon {
-      font-size: 3rem;
-      color: #667eea;
-      margin-bottom: 1rem;
+    .login-content h2 {
+      font-size: 24px;
+      color: #2c3e50;
+      margin-bottom: 15px;
+    }
+    .login-content p {
+      color: #7f8c8d;
+      margin-bottom: 40px;
+      line-height: 1.6;
+    }
+    .google-btn-container {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 30px;
+    }
+    .warning-box {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 30px;
+      text-align: left;
+    }
+    .warning-box strong {
+      color: #856404;
+      display: block;
+      margin-bottom: 8px;
+    }
+    .warning-box ul {
+      color: #856404;
+      font-size: 13px;
+      margin-left: 20px;
+    }
+    .warning-box li {
+      margin-bottom: 5px;
+    }
+    .footer-text {
+      text-align: center;
+      color: #95a5a6;
+      font-size: 12px;
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid #ecf0f1;
+    }
+    .spinner {
+      display: none;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .error-notification {
+      display: none;
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      text-align: left;
     }
   </style>
 </head>
 <body>
   <div class="login-container">
-    <div class="login-box">
-      <div style="text-align: center;">
-        <div class="login-icon">🔐</div>
-        <h1 class="login-title title is-4">PharmChecker 운영 대시보드</h1>
-      </div>
-
-      <form id="loginForm">
-        <div class="field">
-          <label class="label">이메일</label>
-          <div class="control has-icons-left">
-            <input class="input" type="email" id="email" placeholder="admin@pharmchecker.com" required>
-            <span class="icon is-small is-left">
-              <i class="fas fa-envelope"></i>
-            </span>
-          </div>
-        </div>
-
-        <div class="field">
-          <label class="label">비밀번호</label>
-          <div class="control has-icons-left">
-            <input class="input" type="password" id="password" placeholder="********" required>
-            <span class="icon is-small is-left">
-              <i class="fas fa-lock"></i>
-            </span>
-          </div>
-        </div>
-
-        <div id="errorMessage" class="notification is-danger is-light" style="display: none;">
-          <button class="delete" onclick="hideError()"></button>
-          <span id="errorText"></span>
-        </div>
-
-        <div class="field">
-          <div class="control">
-            <button type="submit" class="button is-primary is-fullwidth" id="loginBtn">
-              로그인
-            </button>
-          </div>
-        </div>
-      </form>
-
-      <hr>
+    <div class="login-header">
+      <div class="logo">🔐</div>
+      <h1>PharmChecker</h1>
+      <p>운영 관리 대시보드</p>
+    </div>
+    
+    <div class="login-content">
+      <h2>관리자 로그인</h2>
+      <p>구글 계정으로 로그인하세요</p>
       
-      <div class="has-text-centered">
-        <p class="is-size-7 has-text-grey">
-          <strong>초기 계정:</strong> admin@pharmchecker.com<br>
-          <strong>초기 비밀번호:</strong> Admin123!<br>
-          <span class="has-text-danger">⚠️ 최초 로그인 후 비밀번호 변경 필수</span>
-        </p>
+      <div id="errorMessage" class="error-notification"></div>
+      
+      <div class="google-btn-container">
+        <div id="g_id_onload"
+             data-client_id="506078799522-9ul40knlju9485bp654m76l2c0u76cbf.apps.googleusercontent.com"
+             data-callback="handleCredentialResponse"
+             data-auto_prompt="false">
+        </div>
+        <div class="g_id_signin"
+             data-type="standard"
+             data-size="large"
+             data-theme="outline"
+             data-text="sign_in_with"
+             data-shape="rectangular"
+             data-logo_alignment="left">
+        </div>
+      </div>
+      
+      <div class="spinner" id="loading"></div>
+      
+      <div class="warning-box">
+        <strong>⚠️ 관리자 전용 페이지</strong>
+        <ul>
+          <li>승인된 관리자만 접근 가능합니다</li>
+          <li>관리자 등록은 슈퍼 관리자에게 문의하세요</li>
+          <li>모든 활동은 로그로 기록됩니다</li>
+        </ul>
+      </div>
+      
+      <div class="footer-text">
+        © 2025 PharmChecker. All rights reserved.
       </div>
     </div>
   </div>
 
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  
   <script>
-    document.getElementById('loginForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      
-      const email = document.getElementById('email').value;
-      const password = document.getElementById('password').value;
-      const loginBtn = document.getElementById('loginBtn');
-      
-      loginBtn.classList.add('is-loading');
+    // 구글 로그인 응답 처리
+    async function handleCredentialResponse(response) {
+      document.getElementById('loading').style.display = 'block';
       hideError();
-      
       try {
-        const response = await fetch('/api/admin/login', {
+        const payload = parseJwt(response.credential);
+        const loginResponse = await fetch('/admin/api/login', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ email, password })
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken: response.credential, email: payload.email })
         });
-        
-        const data = await response.json();
-        
-        if (!response.ok) {
-          throw new Error(data.message || '로그인 실패');
+        const result = await loginResponse.json();
+        if (loginResponse.ok && result.success) {
+          localStorage.setItem('admin_session_token', result.session_token);
+          document.cookie = `admin_session_token=${result.session_token}; path=/; max-age=3600;`;
+          window.location.href = '/admin';
+        } else {
+          document.getElementById('loading').style.display = 'none';
+          showError(result.error || '관리자 권한이 없습니다. 슈퍼 관리자에게 문의하세요.');
         }
-        
-        // 세션 토큰 저장
-        localStorage.setItem('admin_session_token', data.session_token);
-        
-        // 대시보드로 이동
-        window.location.href = '/ops-dashboard';
-        
       } catch (error) {
-        showError(error.message);
-        loginBtn.classList.remove('is-loading');
+        document.getElementById('loading').style.display = 'none';
+        showError('로그인 처리 중 오류가 발생했습니다.');
       }
-    });
-    
-    function showError(message) {
-      document.getElementById('errorText').textContent = message;
-      document.getElementById('errorMessage').style.display = 'block';
     }
-    
+
+    function parseJwt(token) {
+      try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function showError(message) {
+      const errorDiv = document.getElementById('errorMessage');
+      errorDiv.textContent = message;
+      errorDiv.style.display = 'block';
+    }
+
     function hideError() {
       document.getElementById('errorMessage').style.display = 'none';
     }

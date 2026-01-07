@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PharmChecker 관리자</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    #app-container {
+      min-height: 100vh;
+    }
+    .loading {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div id="app-container">
+    <div class="loading">
+      <div class="spinner"></div>
+    </div>
+  </div>
+
+  <script>
+    // 페이지 로드 시 세션 체크
+    window.addEventListener('load', async function() {
+      const token = localStorage.getItem('admin_session_token');
+      const container = document.getElementById('app-container');
+      
+      if (token) {
+        // 토큰이 있으면 대시보드 로드
+        await loadDashboard();
+      } else {
+        // 토큰이 없으면 로그인 페이지 로드
+        await loadLogin();
+      }
+    });
+
+    // 로그인 페이지 로드
+    async function loadLogin() {
+      const response = await fetch('/admin/login-content');
+      const html = await response.text();
+      document.getElementById('app-container').innerHTML = html;
+      
+      // 스크립트 실행
+      executeScripts();
+    }
+
+    // 대시보드 로드
+    async function loadDashboard() {
+      const response = await fetch('/admin/dashboard-content');
+      const html = await response.text();
+      document.getElementById('app-container').innerHTML = html;
+      
+      // 스크립트 실행
+      executeScripts();
+    }
+
+    // HTML에 포함된 스크립트 실행
+    function executeScripts() {
+      const scripts = document.getElementById('app-container').querySelectorAll('script');
+      scripts.forEach(script => {
+        const newScript = document.createElement('script');
+        if (script.src) {
+          newScript.src = script.src;
+        } else {
+          newScript.textContent = script.textContent;
+        }
+        document.body.appendChild(newScript);
+      });
+    }
+
+    // 로그인 성공 후 대시보드로 전환 (전역 함수)
+    window.switchToDashboard = async function() {
+      await loadDashboard();
+    };
+
+    // 로그아웃 후 로그인 페이지로 전환 (전역 함수)
+    window.switchToLogin = async function() {
+      localStorage.removeItem('admin_session_token');
+      await loadLogin();
+    };
+  </script>
+</body>
+</html>

@@ -950,7 +950,22 @@
     // 로그아웃
     function logout() {
       if (confirm('로그아웃 하시겠습니까?')) {
-        localStorage.clear();
+        // 고객용 localStorage 항목만 삭제 (관리자용은 유지)
+        localStorage.removeItem('user_session_token');
+        localStorage.removeItem('userId');
+        localStorage.removeItem('email');
+        localStorage.removeItem('name');
+        localStorage.removeItem('pharmacyName');
+        localStorage.removeItem('picture');
+        
+        // sessionStorage 전체 삭제
+        sessionStorage.clear();
+        
+        // 고객용 쿠키만 삭제 (관리자용 쿠키는 유지)
+        document.cookie = 'user_session_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        document.cookie = 'user_session_token=; domain=' + location.hostname + '; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        
+        // 로그인 페이지로 이동
         window.location.href = '/login';
       }
     }

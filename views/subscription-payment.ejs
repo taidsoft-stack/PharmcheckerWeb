@@ -97,6 +97,173 @@
       color: #856404;
       line-height: 1.6;
     }
+    .promotion-notice {
+      margin-top: 20px;
+      padding: 20px;
+      background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%);
+      border-left: 4px solid #4caf50;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(76, 175, 80, 0.1);
+    }
+    .promotion-notice h4 {
+      margin: 0 0 10px 0;
+      color: #2e7d32;
+      font-size: 16px;
+    }
+    .promotion-notice p {
+      margin: 5px 0;
+      color: #33691e;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .promotion-applied {
+      background: #e8f5e9;
+      padding: 10px;
+      border-radius: 5px;
+      margin: 5px 0;
+    }
+    /* 프로모션 선택 모달 */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.active {
+      display: flex;
+    }
+    .modal-content {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+    .modal-header {
+      margin-bottom: 30px;
+    }
+    .modal-header h2 {
+      color: #2c3e50;
+      font-size: 24px;
+      margin-bottom: 10px;
+    }
+    .modal-header p {
+      color: #7f8c8d;
+      font-size: 14px;
+    }
+    .promotion-list {
+      margin-bottom: 30px;
+    }
+    .promotion-item {
+      border: 2px solid #ecf0f1;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 15px;
+      cursor: pointer;
+      transition: all 0.3s;
+      position: relative;
+    }
+    .promotion-item:hover {
+      border-color: #667eea;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    }
+    .promotion-item.selected {
+      border-color: #667eea;
+      background: #f8f9ff;
+    }
+    .promotion-item input[type="radio"] {
+      position: absolute;
+      opacity: 0;
+    }
+    .promotion-item label {
+      cursor: pointer;
+      display: block;
+      width: 100%;
+    }
+    .promotion-name {
+      font-size: 18px;
+      font-weight: 600;
+      color: #2c3e50;
+      margin-bottom: 8px;
+    }
+    .promotion-desc {
+      font-size: 14px;
+      color: #7f8c8d;
+      margin-bottom: 10px;
+    }
+    .promotion-discount {
+      font-size: 20px;
+      font-weight: 700;
+      color: #27ae60;
+    }
+    .promotion-empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: #95a5a6;
+    }
+    .promotion-empty .icon {
+      font-size: 48px;
+      margin-bottom: 15px;
+    }
+    .modal-price-summary {
+      background: #f8f9fa;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .modal-price-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-size: 16px;
+      color: #34495e;
+    }
+    .modal-price-row.total {
+      border-top: 2px solid #dee2e6;
+      padding-top: 15px;
+      margin-top: 15px;
+      font-size: 20px;
+      font-weight: 700;
+      color: #667eea;
+    }
+    .modal-buttons {
+      display: flex;
+      gap: 10px;
+    }
+    .modal-button {
+      flex: 1;
+      padding: 15px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .modal-button.cancel {
+      background: #ecf0f1;
+      color: #7f8c8d;
+    }
+    .modal-button.cancel:hover {
+      background: #bdc3c7;
+    }
+    .modal-button.confirm {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    .modal-button.confirm:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+    }
     .back-link {
       display: block;
       text-align: center;
@@ -130,19 +297,15 @@
         <h3>📋 결제 정보</h3>
         <div class="summary-row">
           <span>플랜</span>
-          <span id="planName">-</span>
+          <span id="planName"><%= planName %></span>
         </div>
         <div class="summary-row">
           <span>결제 금액</span>
-          <span id="planPrice">-</span>
+          <span id="planPrice"><%= originalPrice.toLocaleString() %>원/월</span>
         </div>
         <div class="summary-row">
           <span>결제 주기</span>
           <span>매월 자동결제</span>
-        </div>
-        <div class="summary-row total">
-          <span>첫 달 결제 금액</span>
-          <span id="totalPrice">-</span>
         </div>
       </div>
 
@@ -165,54 +328,183 @@
     </div>
   </div>
 
+  <!-- 프로모션 선택 모달 -->
+  <div class="modal-overlay" id="promotionModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>🎁 프로모션 선택</h2>
+        <p>사용 가능한 프로모션을 선택하세요</p>
+      </div>
+
+      <div class="promotion-list" id="promotionList">
+        <!-- 프로모션 목록이 여기에 동적으로 추가됩니다 -->
+      </div>
+
+      <div class="modal-price-summary">
+        <div class="modal-price-row">
+          <span>플랜 정상가</span>
+          <span id="modalOriginalPrice">-</span>
+        </div>
+        <div class="modal-price-row" id="modalDiscountRow" style="display: none;">
+          <span>프로모션 할인</span>
+          <span id="modalDiscount" style="color: #e74c3c; font-weight: 600;">-</span>
+        </div>
+        <div class="modal-price-row total">
+          <span>최종 결제 금액</span>
+          <span id="modalFinalPrice">-</span>
+        </div>
+      </div>
+
+      <div class="modal-buttons">
+        <button class="modal-button cancel" onclick="closePromotionModal()">취소</button>
+        <button class="modal-button confirm" onclick="confirmPromotion()">확인</button>
+      </div>
+    </div>
+  </div>
+
   <script>
-    // 사용자 정보 및 플랜 정보 확인 (localStorage 사용)
-    const userId = localStorage.getItem('userId');
-    const userName = localStorage.getItem('name');
-    const userEmail = localStorage.getItem('email');
-    const selectedPlan = JSON.parse(localStorage.getItem('selectedPlan') || '{}');
+    // 서버에서 전달받은 데이터 (EJS로 주입)
+    const userId = '<%= userId %>';
+    const planId = '<%= planId %>';
+    const originalPrice = <%= originalPrice %>;
+    const availablePromotions = <%- JSON.stringify(availablePromotions || []) %>;
 
-    if (!userId || !selectedPlan.planId) {
-      alert('잘못된 접근입니다.');
-      window.location.href = '/subscription/plans';
-    }
+    // 선택된 프로모션 정보
+    let selectedPromotion = null;
+    let finalAmount = originalPrice;
 
-    // 플랜 정보 표시
-    document.getElementById('planName').textContent = selectedPlan.planName;
-    document.getElementById('planPrice').textContent = selectedPlan.price.toLocaleString() + '원/월';
-    document.getElementById('totalPrice').textContent = selectedPlan.price.toLocaleString() + '원';
-
-    // 토스페이먼츠 초기화 (서버에서 .env의 TOSS_CLIENT_KEY 전달받음)
+    // 토스페이먼츠 초기화
     const clientKey = '<%= tossClientKey %>';
-    const customerKey = userId; // 사용자 ID를 customerKey로 사용
-
+    const customerKey = userId;
     const tossPayments = TossPayments(clientKey);
-
-    // 자동결제용 payment 인스턴스 생성
     const payment = tossPayments.payment({ customerKey });
 
-    // 카드 등록하기 버튼 이벤트
-    document.getElementById('payment-button').addEventListener('click', async function() {
-      const button = this;
-      button.disabled = true;
+    // 프로모션 선택 모달 열기
+    function openPromotionModal() {
+      const modal = document.getElementById('promotionModal');
+      const promotionList = document.getElementById('promotionList');
+      
+      // 모달 가격 표시
+      document.getElementById('modalOriginalPrice').textContent = originalPrice.toLocaleString() + '원';
+      document.getElementById('modalFinalPrice').textContent = originalPrice.toLocaleString() + '원';
+      
+      // 프로모션 목록 렌더링
+      promotionList.innerHTML = '';
+      
+      if (availablePromotions.length === 0) {
+        // 프로모션 없음
+        promotionList.innerHTML = `
+          <div class="promotion-empty">
+            <div class="icon">📭</div>
+            <h3>사용 가능한 프로모션이 없습니다</h3>
+            <p style="margin-top: 10px;">정상 금액으로 결제가 진행됩니다.</p>
+          </div>
+        `;
+      } else {
+        // 프로모션 목록
+        availablePromotions.forEach((promo, index) => {
+          const discountAmount = promo.discount_type === 'free' 
+            ? originalPrice 
+            : (promo.discount_type === 'percent' 
+              ? Math.round(originalPrice * promo.discount_value / 100)
+              : promo.discount_value);
+          
+          const finalPrice = Math.max(0, originalPrice - discountAmount);
+          
+          const promoHtml = `
+            <div class="promotion-item" id="promo-${index}" onclick="selectPromotion(${index})">
+              <input type="radio" name="promotion" id="radio-${index}" value="${index}">
+              <label for="radio-${index}">
+                <div class="promotion-name">${promo.promotion_name}</div>
+                <div class="promotion-desc">${promo.referral_code ? '코드: ' + promo.referral_code : ''}</div>
+                <div class="promotion-discount">
+                  ${promo.discount_type === 'free' ? '첫 ' + promo.free_months + '개월 무료' : 
+                    promo.discount_type === 'percent' ? promo.discount_value + '% 할인' : 
+                    discountAmount.toLocaleString() + '원 할인'}
+                  → <span style="color: #27ae60;">${finalPrice.toLocaleString()}원</span>
+                </div>
+              </label>
+            </div>
+          `;
+          promotionList.innerHTML += promoHtml;
+        });
+      }
+      
+      modal.classList.add('active');
+    }
+
+    // 프로모션 선택
+    function selectPromotion(index) {
+      // 모든 아이템 선택 해제
+      document.querySelectorAll('.promotion-item').forEach(item => {
+        item.classList.remove('selected');
+      });
+      
+      // 선택한 아이템 활성화
+      const selectedItem = document.getElementById(`promo-${index}`);
+      const radio = document.getElementById(`radio-${index}`);
+      if (selectedItem && radio) {
+        selectedItem.classList.add('selected');
+        radio.checked = true;
+        
+        // 선택한 프로모션 정보 저장
+        selectedPromotion = availablePromotions[index];
+        
+        // 최종 금액 계산
+        const discountAmount = selectedPromotion.discount_type === 'free' 
+          ? originalPrice 
+          : (selectedPromotion.discount_type === 'percent' 
+            ? Math.round(originalPrice * selectedPromotion.discount_value / 100)
+            : selectedPromotion.discount_value);
+        
+        finalAmount = Math.max(0, originalPrice - discountAmount);
+        
+        // 모달 가격 업데이트
+        document.getElementById('modalDiscountRow').style.display = 'flex';
+        document.getElementById('modalDiscount').textContent = '-' + discountAmount.toLocaleString() + '원';
+        document.getElementById('modalFinalPrice').textContent = finalAmount.toLocaleString() + '원';
+        document.getElementById('modalFinalPrice').style.color = finalAmount === 0 ? '#27ae60' : '#667eea';
+      }
+    }
+
+    // 모달 닫기
+    function closePromotionModal() {
+      document.getElementById('promotionModal').classList.remove('active');
+      // 선택 초기화
+      selectedPromotion = null;
+      finalAmount = originalPrice;
+    }
+
+    // 프로모션 확인 및 결제 진행
+    async function confirmPromotion() {
+      const modal = document.getElementById('promotionModal');
+      modal.classList.remove('active');
+      
+      // 로딩 표시
+      document.getElementById('payment-button').disabled = true;
       document.getElementById('loading').classList.add('active');
 
       try {
-        // 자동결제 카드 등록 요청
+        // 자동결제 카드 등록 요청 (최종 금액 전달)
         await payment.requestBillingAuth({
-          method: 'CARD', // 자동결제(빌링)는 카드만 지원
-          successUrl: window.location.origin + `/subscription/billing-success?planId=${selectedPlan.planId}&userId=${userId}&amount=${selectedPlan.price}`,
+          method: 'CARD',
+          successUrl: window.location.origin + `/subscription/billing-success?planId=${planId}&userId=${userId}&amount=${finalAmount}&originalPrice=${originalPrice}&promotionId=${selectedPromotion ? selectedPromotion.promotion_id : ''}&referralCodeId=${selectedPromotion ? selectedPromotion.referral_code_id : ''}`,
           failUrl: window.location.origin + '/subscription/payment-fail',
-          customerEmail: userEmail,
-          customerName: userName,
+          customerEmail: localStorage.getItem('email'),
+          customerName: localStorage.getItem('name'),
         });
 
       } catch (error) {
         console.error('카드 등록 요청 실패:', error);
         alert('카드 등록 요청에 실패했습니다: ' + error.message);
-        button.disabled = false;
+        document.getElementById('payment-button').disabled = false;
         document.getElementById('loading').classList.remove('active');
       }
+    }
+
+    // 결제하기 버튼 이벤트 (모달 열기)
+    document.getElementById('payment-button').addEventListener('click', function() {
+      openPromotionModal();
     });
   </script>
 </body>

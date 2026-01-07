@@ -313,7 +313,8 @@
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            email: payload.email
+            email: payload.email,
+            idToken: response.credential
           })
         });
 
@@ -321,6 +322,12 @@
 
         if (loginResponse.ok && result.success) {
           // 로그인 성공 - localStorage에 사용자 정보 저장 (페이지 간 유지)
+          localStorage.setItem('userId', result.data.userId);
+          // 세션 토큰 저장 (localStorage + 쿠키)
+          localStorage.setItem('user_session_token', result.session_token);
+          document.cookie = `user_session_token=${result.session_token}; path=/; max-age=3600;`;
+          
+          // 사용자 정보 저장 (기존 호환성 유지)
           localStorage.setItem('userId', result.data.userId);
           localStorage.setItem('email', result.data.email);
           localStorage.setItem('name', result.data.pharmacistName);

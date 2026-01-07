@@ -72,10 +72,10 @@
         <div class="navbar-item has-dropdown is-hoverable">
           <a class="navbar-link">
             <i class="fas fa-user-shield"></i>
-            <span id="adminName">관리자</span>
+            <span id="adminName"><%= typeof adminName !== 'undefined' ? adminName : '관리자' %></span>
           </a>
           <div class="navbar-dropdown is-right">
-            <a class="navbar-item" onclick="logout()">
+            <a class="navbar-item" id="logoutBtn">
               <i class="fas fa-sign-out-alt"></i> 로그아웃
             </a>
           </div>
@@ -90,7 +90,7 @@
       <aside class="menu">
         <p class="menu-label">메인</p>
         <ul class="menu-list">
-          <li><a class="is-active" onclick="loadPage('dashboard')">
+          <li><a class="is-active" onclick="window.location.reload()">
             <i class="fas fa-home"></i> 대시보드
           </a></li>
         </ul>
@@ -249,11 +249,16 @@
   </div>
 
   <script>
+    // URL을 /admin으로 변경
+    if (window.location.pathname !== '/admin') {
+      window.history.replaceState(null, '', '/admin');
+    }
+    
     // 로그인 확인
     function checkAuth() {
       const sessionToken = localStorage.getItem('admin_session_token');
       if (!sessionToken) {
-        window.location.href = '/ops-dashboard/login';
+        window.location.href = '/admin';
         return;
       }
       loadAdminInfo();
@@ -262,9 +267,29 @@
     // 관리자 정보 로드
     async function loadAdminInfo() {
       try {
-        const response = await fetch('/api/admin/me', {
+        // 쿠키에서 토큰 가져오기
+        const cookies = document.cookie.split(';').reduce((acc, cookie) => {
+          const trimmed = cookie.trim();
+          const eqIndex = trimmed.indexOf('=');
+          if (eqIndex > 0) {
+            const key = trimmed.substring(0, eqIndex);
+            const value = trimmed.substring(eqIndex + 1);
+            acc[key] = value;
+          }
+          return acc;
+        }, {});
+        const token = cookies['admin_session_token'] || localStorage.getItem('admin_session_token');
+        
+        if (!token) {
+          throw new Error('토큰 없음');
+        }
+        
+        // localStorage에도 저장 (호환성)
+        localStorage.setItem('admin_session_token', token);
+        
+        const response = await fetch('/admin/api/me', {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('admin_session_token')}`
+            'Authorization': 'Bearer ' + token
           }
         });
         
@@ -273,23 +298,62 @@
         }
         
         const data = await response.json();
-        document.getElementById('adminName').textContent = data.admin_name;
+        document.getElementById('adminName').textContent = data.admin_name + ' (' + data.email + ')';
       } catch (error) {
         console.error('관리자 정보 로드 실패:', error);
-        logout();
+        // 인증 실패 시 모든 세션 정보 삭제
+        localStorage.removeItem('admin_session_token');
+        
+        // 쿠키 삭제
+        const cookiesToDelete = [
+          'admin_session_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT',
+          'admin_session_token=; path=/admin; expires=Thu, 01 Jan 1970 00:00:00 GMT',
+          'admin_session_token=; domain=' + window.location.hostname + '; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+        ];
+        cookiesToDelete.forEach(cookie => document.cookie = cookie);
+        
+        // 로그인 페이지로 이동
+        alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+        window.location.href = '/admin';
       }
     }
 
     // 대시보드 통계 로드
     async function loadDashboardStats() {
       try {
-        const response = await fetch('/api/admin/dashboard/stats', {
+        const token = localStorage.getItem('admin_session_token');
+        console.log('통계 API 호출 시작, 토큰:', token ? '존재' : '없음');
+        
+        const response = await fetch('/admin/api/dashboard/stats', {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('admin_session_token')}`
+            'Authorization': 'Bearer ' + token
           }
         });
         
+        console.log('통계 API 응답 상태:', response.status, response.statusText);
+        
+        if (!response.ok) {
+          // 인증 오류면 세션 만료로 처리
+          if (response.status === 401 || response.status === 403) {
+            localStorage.removeItem('admin_session_token');
+            const cookiesToDelete = [
+              'admin_session_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT',
+              'admin_session_token=; path=/admin; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+            ];
+            cookiesToDelete.forEach(cookie => document.cookie = cookie);
+            alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+            window.location.href = '/admin';
+            return;
+          }
+          
+          const errorText = await response.text();
+          console.error('통계 API 오류:', errorText);
+          throw new Error('통계 조회 실패: ' + response.status);
+        }
+        
         const stats = await response.json();
+        
+        console.log('대시보드 통계:', stats);
         
         document.getElementById('totalUsers').textContent = stats.totalUsers.toLocaleString();
         document.getElementById('activeSubscriptions').textContent = stats.activeSubscriptions.toLocaleString();
@@ -298,15 +362,19 @@
         
       } catch (error) {
         console.error('통계 로드 실패:', error);
+        document.getElementById('totalUsers').textContent = '오류';
+        document.getElementById('activeSubscriptions').textContent = '오류';
+        document.getElementById('monthlyRevenue').textContent = '오류';
+        document.getElementById('activePromotions').textContent = '오류';
       }
     }
 
     // 최근 활동 로드
     async function loadRecentActivities() {
       try {
-        const response = await fetch('/api/admin/activities/recent', {
+        const response = await fetch('/admin/api/activities/recent', {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('admin_session_token')}`
+            'Authorization': 'Bearer ' + localStorage.getItem('admin_session_token')
           }
         });
         
@@ -338,19 +406,415 @@
       document.querySelectorAll('.menu-list a').forEach(a => a.classList.remove('is-active'));
       event.target.closest('a').classList.add('is-active');
       
+      if (page === 'dashboard') {
+        // 대시보드는 현재 페이지 리로드
+        location.reload();
+        return;
+      }
+      
+      if (page === 'users') {
+        loadUsersPage();
+        return;
+      }
+      
       // TODO: 페이지별 컨텐츠 로드
       alert(`${page} 페이지 개발 예정`);
     }
-
-    // 로그아웃
-    function logout() {
-      localStorage.removeItem('admin_session_token');
-      window.location.href = '/ops-dashboard/login';
+    
+    // 회원 관리 페이지 로드
+    async function loadUsersPage() {
+      const mainContent = document.getElementById('mainContent');
+      
+      mainContent.innerHTML = `
+        <h1 class="title">회원 관리</h1>
+        
+        <!-- 검색 및 필터 -->
+        <div class="box">
+          <!-- 첫 번째 행: 이름, 이메일 검색 -->
+          <div class="columns">
+            <div class="column is-3">
+              <div class="field">
+                <label class="label">약사명 검색</label>
+                <div class="control has-icons-left">
+                  <input class="input" type="text" id="nameSearch" placeholder="약사명 입력">
+                  <span class="icon is-small is-left">
+                    <i class="fas fa-user"></i>
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="column is-3">
+              <div class="field">
+                <label class="label">이메일 검색</label>
+                <div class="control has-icons-left">
+                  <input class="input" type="text" id="emailSearch" placeholder="이메일 입력">
+                  <span class="icon is-small is-left">
+                    <i class="fas fa-envelope"></i>
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="column is-2">
+              <div class="field">
+                <label class="label">구독 상태</label>
+                <div class="control">
+                  <div class="select is-fullwidth">
+                    <select id="subscriptionFilter">
+                      <option value="">전체</option>
+                      <option value="active">활성</option>
+                      <option value="cancelled">취소됨</option>
+                      <option value="none">없음</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="column is-2">
+              <div class="field">
+                <label class="label">계정 상태</label>
+                <div class="control">
+                  <div class="select is-fullwidth">
+                    <select id="accountFilter">
+                      <option value="">전체</option>
+                      <option value="active">활성</option>
+                      <option value="deleted">탈퇴</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="column is-2">
+              <div class="field">
+                <label class="label">&nbsp;</label>
+                <button class="button is-primary is-fullwidth" onclick="searchUsers()">
+                  <i class="fas fa-search"></i> 검색
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 두 번째 행: 기간 필터 -->
+          <div class="columns">
+            <div class="column is-3">
+              <div class="field">
+                <label class="label">기간 시작일</label>
+                <div class="control">
+                  <input class="input" type="date" id="startDate">
+                </div>
+              </div>
+            </div>
+            
+            <div class="column is-3">
+              <div class="field">
+                <label class="label">기간 종료일</label>
+                <div class="control">
+                  <input class="input" type="date" id="endDate">
+                </div>
+              </div>
+            </div>
+            
+            <div class="column is-6">
+              <div class="field">
+                <label class="label">기간 필터 안내</label>
+                <p class="help">
+                  <i class="fas fa-info-circle"></i> 
+                  탈퇴 회원: 탈퇴일 기준 / 활성 구독: 구독 기간 내 포함 / 기타: 가입일 기준
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 회원 목록 테이블 -->
+        <div class="box">
+          <div class="table-container">
+            <table class="table is-fullwidth is-hoverable is-narrow" style="font-size: 0.85rem;">
+              <thead>
+                <tr>
+                  <th>이메일</th>
+                  <th>약사명</th>
+                  <th>약국명</th>
+                  <th>전화번호</th>
+                  <th>구독 상태</th>
+                  <th>플랜</th>
+                  <th>마지막 결제일</th>
+                  <th>다음 결제일</th>
+                  <th>프로모션</th>
+                  <th style="min-width: 150px;">비고</th>
+                  <th>상태</th>
+                </tr>
+              </thead>
+              <tbody id="usersTableBody">
+                <tr>
+                  <td colspan="11" class="has-text-centered">로딩 중...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          
+          <!-- 페이지네이션 -->
+          <nav class="pagination is-centered" role="navigation" id="pagination">
+            <a class="pagination-previous" id="prevPage">이전</a>
+            <a class="pagination-next" id="nextPage">다음</a>
+            <ul class="pagination-list" id="pageNumbers"></ul>
+          </nav>
+      `;
+      
+      // 회원 목록 로드
+      await fetchUsers();
+    }
+    
+    // 전역 변수
+    let currentPage = 1;
+    let currentName = '';
+    let currentEmail = '';
+    let currentStartDate = '';
+    let currentEndDate = '';
+    let currentSubFilter = '';
+    let currentAccFilter = '';
+    
+    // 회원 검색
+    function searchUsers() {
+      currentPage = 1;
+      currentName = document.getElementById('nameSearch').value;
+      currentEmail = document.getElementById('emailSearch').value;
+      currentStartDate = document.getElementById('startDate').value;
+      currentEndDate = document.getElementById('endDate').value;
+      currentSubFilter = document.getElementById('subscriptionFilter').value;
+      currentAccFilter = document.getElementById('accountFilter').value;
+      fetchUsers();
+    }
+    
+    // 회원 목록 조회
+    async function fetchUsers(page = 1) {
+      currentPage = page;
+      
+      try {
+        const params = new URLSearchParams({
+          page: currentPage,
+          limit: 20,
+          name: currentName,
+          email: currentEmail,
+          startDate: currentStartDate,
+          endDate: currentEndDate,
+          subscriptionStatus: currentSubFilter,
+          accountStatus: currentAccFilter
+        });
+        
+        const response = await fetch('/admin/api/users?' + params, {
+          headers: {
+            'Authorization': 'Bearer ' + localStorage.getItem('admin_session_token')
+          }
+        });
+        
+        const data = await response.json();
+        
+        // 테이블 렌더링
+        const tbody = document.getElementById('usersTableBody');
+        
+        if (!data.users || data.users.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="11" class="has-text-centered">회원이 없습니다</td></tr>';
+          return;
+        }
+        
+        tbody.innerHTML = data.users.map(user => {
+          const subscriptionTag = user.subscription 
+            ? '<span class="tag ' + (user.subscription.status === 'active' ? 'is-success' : 'is-warning') + '">' + (user.subscription.status === 'active' ? '활성' : '취소됨') + '</span>'
+            : '<span class="tag is-light">없음</span>';
+          
+          const accountTag = user.is_deleted 
+            ? '<span class="tag is-danger">탈퇴</span>' 
+            : (user.is_active ? '<span class="tag is-success">활성</span>' : '<span class="tag is-warning">비활성</span>');
+          
+          const lastPaymentDate = user.last_payment 
+            ? new Date(user.last_payment.date).toLocaleDateString('ko-KR')
+            : '-';
+          
+          const nextBillingDate = user.subscription?.next_billing_at
+            ? new Date(user.subscription.next_billing_at).toLocaleDateString('ko-KR')
+            : '-';
+          
+          const promotionInfo = user.active_promotions && user.active_promotions.length > 0
+            ? user.active_promotions.map(p => {
+                if (p.promotion_type === 'discount') {
+                  return p.discount_rate + '% 할인';
+                } else if (p.promotion_type === 'free') {
+                  return p.free_months + '개월 무료';
+                }
+                return p.promotion_type;
+              }).join(', ')
+            : '-';
+          
+          return '<tr>'+
+            '<td>' + user.email + '</td>'+
+            '<td>' + user.pharmacist_name + '</td>'+
+            '<td>' + user.pharmacy_name + '</td>'+
+            '<td>' + (user.pharmacist_phone || '-') + '</td>'+
+            '<td>' + subscriptionTag + '</td>'+
+            '<td>' + (user.subscription?.plan_name || '-') + '</td>'+
+            '<td>' + lastPaymentDate + '</td>'+
+            '<td>' + nextBillingDate + '</td>'+
+            '<td style="font-size: 0.75rem;">' + promotionInfo + '</td>'+
+            '<td>'+
+              '<input type="text" class="input is-small" ' +
+              'value="' + (user.latest_remarks || '') + '" ' +
+              'onblur="updateUserRemarks(\'' + user.user_id + '\', this.value)" ' +
+              'placeholder="비고 입력..." ' +
+              'title="' + (user.full_memo ? '메모: ' + user.full_memo.substring(0, 100) : '메모 없음') + '">'+
+            '</td>'+
+            '<td>' + accountTag + '</td>'+
+          '</tr>';
+        }).join('');
+        
+        // 페이지네이션 렌더링
+        renderPagination(data.page, data.totalPages);
+        
+      } catch (error) {
+        console.error('회원 목록 조회 실패:', error);
+        document.getElementById('usersTableBody').innerHTML = 
+          '<tr><td colspan="11" class="has-text-centered has-text-danger">오류가 발생했습니다</td></tr>';
+      }
+    }
+    
+    // 페이지네이션 렌더링
+    function renderPagination(currentPage, totalPages) {
+      const prevBtn = document.getElementById('prevPage');
+      const nextBtn = document.getElementById('nextPage');
+      const pageNumbers = document.getElementById('pageNumbers');
+      
+      // 이전/다음 버튼
+      prevBtn.disabled = currentPage === 1;
+      nextBtn.disabled = currentPage === totalPages;
+      
+      prevBtn.onclick = () => currentPage > 1 && fetchUsers(currentPage - 1);
+      nextBtn.onclick = () => currentPage < totalPages && fetchUsers(currentPage + 1);
+      
+      // 페이지 번호
+      let pages = [];
+      const maxPages = 5;
+      let startPage = Math.max(1, currentPage - Math.floor(maxPages / 2));
+      let endPage = Math.min(totalPages, startPage + maxPages - 1);
+      
+      if (endPage - startPage < maxPages - 1) {
+        startPage = Math.max(1, endPage - maxPages + 1);
+      }
+      
+      for (let i = startPage; i <= endPage; i++) {
+        pages.push(
+          '<li>' +
+            '<a class="pagination-link ' + (i === currentPage ? 'is-current' : '') + '" ' +
+               'onclick="fetchUsers(' + i + ')">' + i + '</a>' +
+          '</li>'
+        );
+      }
+      
+      pageNumbers.innerHTML = pages.join('');
+    }
+    
+    // 회원 상세 페이지로 이동
+    function viewUserDetail(userId) {
+      alert('회원 상세 페이지 개발 예정\nUser ID: ' + userId);
+      // TODO: 상세 페이지 구현
+    }
+    
+    // 회원 비고 업데이트 (admin_user_memos.remarks 사용)
+    async function updateUserRemarks(userId, remarksText) {
+      try {
+        const response = await fetch('/admin/api/users/' + userId + '/memos', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + localStorage.getItem('admin_session_token'),
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ remarks: remarksText })
+        });
+        
+        if (!response.ok) {
+          throw new Error('비고 저장 실패');
+        }
+        
+        const result = await response.json();
+        console.log('비고가 저장되었습니다:', result);
+      } catch (error) {
+        console.error('비고 저장 오류:', error);
+        alert('비고 저장에 실패했습니다.');
+      }
     }
 
-    // 초기화
+    // 로그아웃
+    async function logout() {
+      if (!confirm('로그아웃 하시겠습니까?')) {
+        return;
+      }
+      
+      // 로딩 표시
+      const logoutBtn = document.getElementById('logoutBtn');
+      if (logoutBtn) {
+        logoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 로그아웃 중...';
+        logoutBtn.style.pointerEvents = 'none';
+      }
+      
+      try {
+        // 로그아웃 활동 로그 기록
+        await fetch('/admin/api/logout', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('admin_session_token')}`,
+            'Content-Type': 'application/json'
+          }
+        });
+      } catch (error) {
+        console.error('로그아웃 로그 기록 실패:', error);
+      }
+      
+      // 토큰 삭제 (localStorage)
+      localStorage.removeItem('admin_session_token');
+      
+      // 토큰 삭제 (쿠키 - 모든 경로와 도메인 조합)
+      const cookiesToDelete = [
+        'admin_session_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT',
+        'admin_session_token=; path=/admin; expires=Thu, 01 Jan 1970 00:00:00 GMT',
+        'admin_session_token=; domain=localhost; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT',
+        'admin_session_token=; domain=.localhost; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT',
+        'admin_session_token=; domain=' + window.location.hostname + '; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+      ];
+      
+      cookiesToDelete.forEach(cookie => {
+        document.cookie = cookie;
+      });
+      
+      // 완전히 삭제되었는지 확인
+      console.log('로그아웃 후 쿠키:', document.cookie);
+      
+      // /admin으로 이동 (로그인 페이지 자동 로드)
+      window.location.href = '/admin';
+    }
+
+    // 초기화 - 즉시 실행
+    console.log('대시보드 초기화 시작');
+    
+    // 로그아웃 버튼 이벤트 리스너
+    window.addEventListener('load', function() {
+      console.log('페이지 로드 완료');
+      const logoutBtn = document.getElementById('logoutBtn');
+      if (logoutBtn) {
+        console.log('로그아웃 버튼 발견, 이벤트 바인딩');
+        logoutBtn.addEventListener('click', logout);
+      } else {
+        console.error('로그아웃 버튼을 찾을 수 없음');
+      }
+    });
+    
+    // 인증 체크 및 데이터 로드 - 즉시 실행
+    console.log('checkAuth 호출');
     checkAuth();
+    console.log('loadDashboardStats 호출');
     loadDashboardStats();
+    console.log('loadRecentActivities 호출');
     loadRecentActivities();
   </script>
 </body>

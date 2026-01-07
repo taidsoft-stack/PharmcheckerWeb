@@ -420,10 +420,36 @@
           <ul class="plan-features">
             ${features.map(f => `<li>${f}</li>`).join('')}
           </ul>
-          <button class="select-btn" onclick="selectPlan('${plan.plan_id}', '${plan.plan_name}', ${plan.monthly_price})">
+          <button type="button" class="select-btn" data-plan-id="${plan.plan_id}" data-plan-name="${plan.plan_name}" data-plan-price="${plan.monthly_price}">
             선택하기
           </button>
         `;
+        
+        // 버튼에 이벤트 리스너 추가
+        const selectBtn = card.querySelector('.select-btn');
+        if (selectBtn) {
+          console.log('버튼 이벤트 리스너 등록:', plan.plan_name);
+          selectBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            console.log('버튼 클릭됨!', plan.plan_id);
+            
+            // 즉시 페이지 이동
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+              alert('로그인이 필요합니다.');
+              window.location.href = '/login';
+              return false;
+            }
+            
+            console.log('페이지 이동:', `/subscription/payment?userId=${userId}&planId=${plan.plan_id}`);
+            window.location.href = `/subscription/payment?userId=${userId}&planId=${plan.plan_id}`;
+            return false;
+          }, true); // capture 모드
+        } else {
+          console.error('버튼을 찾을 수 없습니다!');
+        }
         
         plansGrid.appendChild(card);
       });
@@ -431,19 +457,19 @@
 
     // 플랜 선택
     async function selectPlan(planId, planName, price) {
-      if (!confirm(`${planName} 플랜 (${price.toLocaleString()}원/월)을 선택하시겠습니까?`)) {
-        return;
-      }
-
+      console.log('플랜 선택:', planId, planName, price);
+      
       try {
-        // 결제 페이지로 이동하면서 플랜 정보 전달 (localStorage 사용)
-        localStorage.setItem('selectedPlan', JSON.stringify({
-          planId: planId,
-          planName: planName,
-          price: price
-        }));
+        const userId = localStorage.getItem('userId');
+        if (!userId) {
+          alert('로그인이 필요합니다.');
+          window.location.href = '/login';
+          return;
+        }
         
-        window.location.href = '/subscription/payment';
+        // 결제 페이지로 이동하면서 플랜 정보 전달 (쿼리 파라미터 사용)
+        console.log('페이지 이동 시작:', `/subscription/payment?userId=${userId}&planId=${planId}`);
+        window.location.href = `/subscription/payment?userId=${userId}&planId=${planId}`;
       } catch (error) {
         console.error('플랜 선택 에러:', error);
         alert('플랜 선택 중 오류가 발생했습니다.');
@@ -463,15 +489,19 @@
         const response = await fetch(`/api/subscription/my?userId=${userId}`);
         const data = await response.json();
         
-        if (data.success) {
+        console.log('구독 확인 결과:', data);
+        
+        if (data.success && data.data) {
           // 이미 구독 중
           alert('이미 구독 중입니다. 내 구독 정보 페이지로 이동합니다.');
           window.location.href = '/my-subscription';
           return false;
         }
+        // 구독 없음 - 정상 진행
         return true;
       } catch (error) {
-        // 구독 없음
+        console.log('구독 확인 에러 (정상 - 구독 없음):', error);
+        // 구독 없음 - 정상 진행
         return true;
       }
     }
