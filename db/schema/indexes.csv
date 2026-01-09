@@ -80,6 +80,8 @@ public,admin_user_memos,admin_user_memos_pkey,CREATE UNIQUE INDEX admin_user_mem
 public,admins,admins_pkey,CREATE UNIQUE INDEX admins_pkey ON public.admins USING btree (admin_id)
 public,billing_payments,billing_payments_order_id_key,CREATE UNIQUE INDEX billing_payments_order_id_key ON public.billing_payments USING btree (order_id)
 public,billing_payments,billing_payments_pkey,CREATE UNIQUE INDEX billing_payments_pkey ON public.billing_payments USING btree (payment_id)
+public,billing_payments,idx_billing_payments_first_payment_check,"CREATE INDEX idx_billing_payments_first_payment_check ON public.billing_payments USING btree (user_id) WHERE ((status = ANY (ARRAY['paid'::text, 'success'::text])) AND (amount > 0))"
+public,billing_payments,idx_billing_payments_promotion_id,CREATE INDEX idx_billing_payments_promotion_id ON public.billing_payments USING btree (promotion_id) WHERE (promotion_id IS NOT NULL)
 public,doctors,doctors_pkey,CREATE UNIQUE INDEX doctors_pkey ON public.doctors USING btree (doctor_id)
 public,doctors,idx_doctors_id_tenant,"CREATE INDEX idx_doctors_id_tenant ON public.doctors USING btree (doctor_id, tenant_id)"
 public,doctors,uk_doctors,"CREATE UNIQUE INDEX uk_doctors ON public.doctors USING btree (tenant_id, doctor_name, hospital_name)"
@@ -99,3 +101,53 @@ public,patients,idx_patients_id_tenant,"CREATE INDEX idx_patients_id_tenant ON p
 public,patients,idx_patients_name,CREATE INDEX idx_patients_name ON public.patients USING btree (patient_name)
 public,patients,patients_pkey,CREATE UNIQUE INDEX patients_pkey ON public.patients USING btree (patient_id)
 public,patients,uk_patients,"CREATE UNIQUE INDEX uk_patients ON public.patients USING btree (tenant_id, patient_number)"
+public,payment_methods,payment_methods_billing_key_key,CREATE UNIQUE INDEX payment_methods_billing_key_key ON public.payment_methods USING btree (billing_key)
+public,payment_methods,payment_methods_pkey,CREATE UNIQUE INDEX payment_methods_pkey ON public.payment_methods USING btree (payment_method_id)
+public,pending_user_promotions,idx_pending_promotions_applied,"CREATE INDEX idx_pending_promotions_applied ON public.pending_user_promotions USING btree (user_id, status) WHERE ((status)::text = 'applied'::text)"
+public,pending_user_promotions,idx_pending_promotions_status,CREATE INDEX idx_pending_promotions_status ON public.pending_user_promotions USING btree (status)
+public,pending_user_promotions,idx_pending_user_promotions_applied_at,"CREATE INDEX idx_pending_user_promotions_applied_at ON public.pending_user_promotions USING btree (user_id, applied_at)"
+public,pending_user_promotions,pending_user_promotions_pkey,CREATE UNIQUE INDEX pending_user_promotions_pkey ON public.pending_user_promotions USING btree (pending_id)
+public,promotion_usage_history,promotion_usage_history_pkey,CREATE UNIQUE INDEX promotion_usage_history_pkey ON public.promotion_usage_history USING btree (history_id)
+public,promotion_usage_history,ux_promotion_usage_unique,"CREATE UNIQUE INDEX ux_promotion_usage_unique ON public.promotion_usage_history USING btree (business_number, promotion_code)"
+public,referral_codes,referral_codes_code_key,CREATE UNIQUE INDEX referral_codes_code_key ON public.referral_codes USING btree (code)
+public,referral_codes,referral_codes_pkey,CREATE UNIQUE INDEX referral_codes_pkey ON public.referral_codes USING btree (referral_code_id)
+public,referral_codes,uk_referral_codes_code,CREATE UNIQUE INDEX uk_referral_codes_code ON public.referral_codes USING btree (code)
+public,remote_support_sessions,idx_remote_support_sessions_agent,CREATE INDEX idx_remote_support_sessions_agent ON public.remote_support_sessions USING btree (agent_id)
+public,remote_support_sessions,idx_remote_support_sessions_status_requested,"CREATE INDEX idx_remote_support_sessions_status_requested ON public.remote_support_sessions USING btree (status, requested_at DESC)"
+public,remote_support_sessions,idx_remote_support_sessions_user,CREATE INDEX idx_remote_support_sessions_user ON public.remote_support_sessions USING btree (user_id)
+public,remote_support_sessions,remote_support_sessions_pkey,CREATE UNIQUE INDEX remote_support_sessions_pkey ON public.remote_support_sessions USING btree (session_id)
+public,remote_support_sessions,remote_support_sessions_session_number_key,CREATE UNIQUE INDEX remote_support_sessions_session_number_key ON public.remote_support_sessions USING btree (session_number)
+public,rxheads,idx_rxheads_tenant_created,"CREATE INDEX idx_rxheads_tenant_created ON public.rxheads USING btree (tenant_id, created_at DESC)"
+public,rxheads,rxheads_pkey,CREATE UNIQUE INDEX rxheads_pkey ON public.rxheads USING btree (rxhead_id)
+public,rxheads,uk_rxheads,"CREATE UNIQUE INDEX uk_rxheads ON public.rxheads USING btree (tenant_id, textfile_number)"
+public,rxrecipe_details,rxrecipe_details_pkey,CREATE UNIQUE INDEX rxrecipe_details_pkey ON public.rxrecipe_details USING btree (id)
+public,rxrecipe_details,uk_rxrecipe_details_alive,"CREATE UNIQUE INDEX uk_rxrecipe_details_alive ON public.rxrecipe_details USING btree (tenant_id, rxrecipe_id, pack_serial, is_alive)"
+public,rxrecipes,idx_rxrecipes_lookup,"CREATE INDEX idx_rxrecipes_lookup ON public.rxrecipes USING btree (tenant_id, textfile_number, recipe_order, rxrecipe_id)"
+public,rxrecipes,rxrecipes_pkey,CREATE UNIQUE INDEX rxrecipes_pkey ON public.rxrecipes USING btree (rxrecipe_id)
+public,subscription_free_grants,subscription_free_grants_pkey,CREATE UNIQUE INDEX subscription_free_grants_pkey ON public.subscription_free_grants USING btree (free_grant_id)
+public,subscription_plans,subscription_plans_pkey,CREATE UNIQUE INDEX subscription_plans_pkey ON public.subscription_plans USING btree (plan_id)
+public,subscription_plans,subscription_plans_plan_code_key,CREATE UNIQUE INDEX subscription_plans_plan_code_key ON public.subscription_plans USING btree (plan_code)
+public,subscription_promotions,subscription_promotions_pkey,CREATE UNIQUE INDEX subscription_promotions_pkey ON public.subscription_promotions USING btree (promotion_id)
+public,subscription_promotions,subscription_promotions_promotion_code_key,CREATE UNIQUE INDEX subscription_promotions_promotion_code_key ON public.subscription_promotions USING btree (promotion_code)
+public,support_attachments,idx_support_attachments_reply,CREATE INDEX idx_support_attachments_reply ON public.support_attachments USING btree (reply_id) WHERE (reply_id IS NOT NULL)
+public,support_attachments,idx_support_attachments_ticket_reply,"CREATE INDEX idx_support_attachments_ticket_reply ON public.support_attachments USING btree (ticket_id, reply_id)"
+public,support_attachments,idx_support_attachments_ticket_user,CREATE INDEX idx_support_attachments_ticket_user ON public.support_attachments USING btree (ticket_id) WHERE (reply_id IS NULL)
+public,support_attachments,idx_support_attachments_uploaded_by,CREATE INDEX idx_support_attachments_uploaded_by ON public.support_attachments USING btree (uploaded_by)
+public,support_attachments,support_attachments_pkey,CREATE UNIQUE INDEX support_attachments_pkey ON public.support_attachments USING btree (attachment_id)
+public,support_replies,support_replies_pkey,CREATE UNIQUE INDEX support_replies_pkey ON public.support_replies USING btree (reply_id)
+public,support_tickets,support_tickets_pkey,CREATE UNIQUE INDEX support_tickets_pkey ON public.support_tickets USING btree (ticket_id)
+public,temp_drug_csv_filtered,temp_drug_csv_filtered_pkey,CREATE UNIQUE INDEX temp_drug_csv_filtered_pkey ON public.temp_drug_csv_filtered USING btree (pack_barcode)
+public,usage_billing_period_stats,usage_billing_period_stats_pkey,CREATE UNIQUE INDEX usage_billing_period_stats_pkey ON public.usage_billing_period_stats USING btree (id)
+public,usage_billing_period_stats,usage_billing_period_stats_subscription_id_period_start_key,"CREATE UNIQUE INDEX usage_billing_period_stats_subscription_id_period_start_key ON public.usage_billing_period_stats USING btree (subscription_id, period_start)"
+public,usage_daily_stats,usage_daily_stats_pkey,CREATE UNIQUE INDEX usage_daily_stats_pkey ON public.usage_daily_stats USING btree (id)
+public,usage_daily_stats,usage_daily_stats_user_id_usage_date_key,"CREATE UNIQUE INDEX usage_daily_stats_user_id_usage_date_key ON public.usage_daily_stats USING btree (user_id, usage_date)"
+public,user_deletion_logs,idx_user_deletion_logs_deleted_by_created_at,"CREATE INDEX idx_user_deletion_logs_deleted_by_created_at ON public.user_deletion_logs USING btree (deleted_by, created_at DESC)"
+public,user_deletion_logs,idx_user_deletion_logs_user_id_created_at,"CREATE INDEX idx_user_deletion_logs_user_id_created_at ON public.user_deletion_logs USING btree (user_id, created_at DESC)"
+public,user_deletion_logs,user_deletion_logs_pkey,CREATE UNIQUE INDEX user_deletion_logs_pkey ON public.user_deletion_logs USING btree (deletion_id)
+public,user_subscriptions,user_subscriptions_pkey,CREATE UNIQUE INDEX user_subscriptions_pkey ON public.user_subscriptions USING btree (subscription_id)
+public,users,idx_users_business_number,CREATE INDEX idx_users_business_number ON public.users USING btree (business_number)
+public,users,idx_users_created_at,CREATE INDEX idx_users_created_at ON public.users USING btree (created_at DESC)
+public,users,idx_users_is_active,CREATE INDEX idx_users_is_active ON public.users USING btree (is_active)
+public,users,idx_users_is_deleted,CREATE INDEX idx_users_is_deleted ON public.users USING btree (is_deleted)
+public,users,users_business_number_active_unique,CREATE UNIQUE INDEX users_business_number_active_unique ON public.users USING btree (business_number) WHERE (is_deleted = false)
+public,users,users_pkey,CREATE UNIQUE INDEX users_pkey ON public.users USING btree (user_id)

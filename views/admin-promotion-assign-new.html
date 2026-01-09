@@ -1,0 +1,852 @@
+<!-- 프로모션 할당 페이지 (LLM 설계 기반 전면 재구성) -->
+<div id="promotionAssignPage">
+  <h1 class="title">프로모션 할당 관리</h1>
+  <p class="subtitle">첫 결제 예정 고객 대상 프로모션 운영</p>
+
+  <!-- ① 상단: 프로모션 대상 회원 리스트 (메인 테이블) -->
+  <div class="box">
+    <div class="level">
+      <div class="level-left">
+        <div class="level-item">
+          <h5 class="title is-5">📋 첫 결제 예정 고객 목록</h5>
+        </div>
+      </div>
+      <div class="level-right">
+        <div class="level-item">
+          <div class="field has-addons">
+            <div class="control">
+              <input class="input" type="text" placeholder="약사명 검색" id="filterPharmacistName">
+            </div>
+            <div class="control">
+              <input class="input" type="text" placeholder="약국명 검색" id="filterPharmacyName">
+            </div>
+            <div class="control">
+              <button class="button is-info" onclick="loadCandidatesList()">
+                <span class="icon"><i class="fas fa-search"></i></span>
+                <span>검색</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <table class="table is-fullwidth is-hoverable is-striped">
+        <thead>
+          <tr>
+            <th style="width: 50px;">
+              <input type="checkbox" id="selectAllCandidates" onchange="toggleSelectAll()">
+            </th>
+            <th>회원명 / 약국명</th>
+            <th>사업자번호</th>
+            <th>가입일</th>
+            <th>구독 상태</th>
+            <th>
+              <span class="has-tooltip-arrow" data-tooltip="billing_payments 기준 첫 결제 여부">
+                첫 결제 여부 ℹ️
+              </span>
+            </th>
+            <th>다음 결제 예정일</th>
+            <th>프로모션 상태</th>
+            <th style="width: 150px;">액션</th>
+          </tr>
+        </thead>
+        <tbody id="candidatesTableBody">
+          <tr>
+            <td colspan="9" class="has-text-centered">로딩 중...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 선택된 회원 수 표시 -->
+    <div class="notification is-light" id="selectedCountNotification" style="display: none;">
+      <strong id="selectedCountText">0명 선택됨</strong>
+      <button class="delete" onclick="clearSelection()"></button>
+    </div>
+
+    <!-- 하단: 프로모션 할당 영역 -->
+    <div class="box has-background-light" id="bulkAssignSection" style="display: none;">
+      <h6 class="title is-6">🎁 선택한 회원에게 프로모션 할당</h6>
+      
+      <div class="columns">
+        <div class="column is-8">
+          <div class="field">
+            <label class="label">프로모션 선택 <span class="has-text-danger">*</span></label>
+            <div class="control">
+              <div class="select is-fullwidth">
+                <select id="bulkPromotionSelect">
+                  <option value="">프로모션을 선택하세요</option>
+                </select>
+              </div>
+            </div>
+            <p class="help">✅ 첫 결제 전용 프로모션만 표시됩니다</p>
+          </div>
+        </div>
+        <div class="column is-4">
+          <label class="label">메모 (선택사항)</label>
+          <div class="control">
+            <input class="input" type="text" placeholder="예: 오픈 이벤트" id="bulkAssignMemo">
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="control">
+          <button class="button is-primary" onclick="executeBulkAssign()">
+            <span class="icon"><i class="fas fa-paper-plane"></i></span>
+            <span id="bulkAssignButtonText">0명에게 프로모션 할당</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ② 회원 상세 패널 (Modal) -->
+  <div class="modal" id="userDetailModal">
+    <div class="modal-background" onclick="closeUserDetailModal()"></div>
+    <div class="modal-card" style="width: 900px;">
+      <header class="modal-card-head">
+        <p class="modal-card-title">🔍 회원 상세 정보 및 프로모션 판단</p>
+        <button class="delete" aria-label="close" onclick="closeUserDetailModal()"></button>
+      </header>
+      <section class="modal-card-body">
+        <!-- 기본 정보 -->
+        <div class="box">
+          <h6 class="title is-6">기본 정보</h6>
+          <div class="columns is-multiline" id="userBasicInfo">
+            <div class="column is-6">
+              <strong>약사명:</strong> <span id="detailPharmacistName">-</span>
+            </div>
+            <div class="column is-6">
+              <strong>약국명:</strong> <span id="detailPharmacyName">-</span>
+            </div>
+            <div class="column is-6">
+              <strong>이메일:</strong> <span id="detailEmail">-</span>
+            </div>
+            <div class="column is-6">
+              <strong>전화번호:</strong> <span id="detailPhone">-</span>
+            </div>
+            <div class="column is-12">
+              <strong>사업자번호:</strong> <span id="detailBusinessNumber">-</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- (A) 프로모션 이력 요약 -->
+        <div class="box has-background-warning-light">
+          <h6 class="title is-6">📊 프로모션 이력 요약 (promotion_usage_history)</h6>
+          <div id="promotionHistorySummary">
+            <p class="has-text-centered">로딩 중...</p>
+          </div>
+        </div>
+
+        <!-- (B) 구독 / 결제 상태 요약 -->
+        <div class="box has-background-info-light">
+          <h6 class="title is-6">💳 구독 / 결제 상태 (user_subscriptions + billing_payments)</h6>
+          <div id="subscriptionSummary">
+            <p class="has-text-centered">로딩 중...</p>
+          </div>
+        </div>
+
+        <!-- (C) 예약된 프로모션 (pending_user_promotions) -->
+        <div class="box has-background-success-light">
+          <h6 class="title is-6">🎁 예약된 프로모션 (pending_user_promotions)</h6>
+          <div id="pendingPromotionsList">
+            <p class="has-text-centered">로딩 중...</p>
+          </div>
+        </div>
+
+        <!-- ③ 프로모션 할당 액션 -->
+        <div class="box has-background-light">
+          <h6 class="title is-6">🎯 이 회원에게 프로모션 할당</h6>
+          
+          <div id="assignmentEligibilityCheck">
+            <!-- 자격 판단 메시지가 여기 표시됨 -->
+          </div>
+
+          <div class="field">
+            <label class="label">프로모션 선택</label>
+            <div class="control">
+              <div class="select is-fullwidth">
+                <select id="singlePromotionSelect">
+                  <option value="">프로모션을 선택하세요</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="label">메모 (선택사항)</label>
+            <div class="control">
+              <input class="input" type="text" placeholder="예: CS 대응, 영업용" id="singleAssignMemo">
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="control">
+              <button class="button is-primary" id="singleAssignButton" onclick="executeSingleAssign()">
+                <span class="icon"><i class="fas fa-paper-plane"></i></span>
+                <span>프로모션 할당</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+      <footer class="modal-card-foot">
+        <button class="button" onclick="closeUserDetailModal()">닫기</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- 할당 내역 섹션 -->
+  <div class="box">
+    <div class="level">
+      <div class="level-left">
+        <div class="level-item">
+          <h5 class="title is-5">📜 프로모션 할당 내역</h5>
+        </div>
+      </div>
+      <div class="level-right">
+        <div class="level-item">
+          <button class="button is-light" onclick="loadAssignmentList()">
+            <span class="icon"><i class="fas fa-sync"></i></span>
+            <span>새로고침</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <table class="table is-fullwidth is-hoverable">
+        <thead>
+          <tr>
+            <th>회원</th>
+            <th>프로모션</th>
+            <th>할인 정보</th>
+            <th>할당일</th>
+            <th>적용일</th>
+            <th>상태</th>
+            <th>소스</th>
+            <th style="width: 100px;">관리</th>
+          </tr>
+        </thead>
+        <tbody id="assignmentTableBody">
+          <tr>
+            <td colspan="8" class="has-text-centered">로딩 중...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<style>
+  .has-tooltip-arrow {
+    position: relative;
+    cursor: help;
+    border-bottom: 1px dotted #aaa;
+  }
+  
+  .candidate-row:hover {
+    background-color: #f0f8ff;
+  }
+  
+  .status-reserved { color: #3273dc; }
+  .status-selected { color: #ff9800; }
+  .status-applied { color: #48c774; }
+  .status-expired { color: #888; }
+  .status-cancelled { color: #f14668; }
+</style>
+
+<script>
+  // ===========================
+  // 프로모션 할당 페이지 전역 변수
+  // ===========================
+  let candidatesList = [];
+  let selectedCandidates = [];
+  let currentUserDetail = null;
+
+  // ===========================
+  // 페이지 로드
+  // ===========================
+  async function initPromotionAssignPage() {
+    await loadCandidatesList();
+    await loadFirstPaymentPromotions();
+    await loadAssignmentList();
+  }
+
+  // ===========================
+  // ① 첫 결제 예정 고객 목록 조회
+  // ===========================
+  async function loadCandidatesList() {
+    const pharmacistName = document.getElementById('filterPharmacistName').value.trim();
+    const pharmacyName = document.getElementById('filterPharmacyName').value.trim();
+
+    try {
+      const params = new URLSearchParams();
+      if (pharmacistName) params.append('pharmacist_name', pharmacistName);
+      if (pharmacyName) params.append('pharmacy_name', pharmacyName);
+
+      const response = await fetch('/admin/api/assign-promotion/candidates?' + params, {
+        headers: {
+          'Authorization': 'Bearer ' + localStorage.getItem('admin_session_token')
+        }
+      });
+
+      const data = await response.json();
+      candidatesList = data.candidates || [];
+
+      renderCandidatesTable();
+    } catch (error) {
+      console.error('후보 목록 조회 오류:', error);
+      document.getElementById('candidatesTableBody').innerHTML = 
+        '<tr><td colspan="9" class="has-text-centered has-text-danger">오류가 발생했습니다</td></tr>';
+    }
+  }
+
+  function renderCandidatesTable() {
+    const tbody = document.getElementById('candidatesTableBody');
+
+    if (candidatesList.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="9" class="has-text-centered">첫 결제 예정 고객이 없습니다</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = candidatesList.map((user, index) => {
+      const firstPaymentBadge = user.is_first_payment 
+        ? '<span class="tag is-success">✅ 첫 결제</span>' 
+        : '<span class="tag is-danger">❌ 기존 고객</span>';
+
+      const subscriptionBadge = user.subscription_status 
+        ? `<span class="tag is-info">${user.subscription_status}</span>` 
+        : '<span class="tag is-light">없음</span>';
+
+      const promotionStatusBadge = user.has_pending_promotion
+        ? '<span class="tag is-warning">예약됨</span>'
+        : '<span class="tag is-light">없음</span>';
+
+      return `
+        <tr class="candidate-row">
+          <td class="has-text-centered">
+            <input type="checkbox" class="candidate-checkbox" value="${user.user_id}" 
+              data-index="${index}" onchange="updateSelectionState()">
+          </td>
+          <td>
+            <strong>${user.pharmacist_name || '-'}</strong><br>
+            <small>${user.pharmacy_name || '-'}</small>
+          </td>
+          <td><small>${user.business_number || '-'}</small></td>
+          <td><small>${new Date(user.created_at).toLocaleDateString('ko-KR')}</small></td>
+          <td>${subscriptionBadge}</td>
+          <td>${firstPaymentBadge}</td>
+          <td>${user.next_billing_at ? new Date(user.next_billing_at).toLocaleString('ko-KR') : '-'}</td>
+          <td>${promotionStatusBadge}</td>
+          <td>
+            <button class="button is-small is-info" onclick="openUserDetailModal('${user.user_id}')">
+              <span class="icon"><i class="fas fa-search"></i></span>
+              <span>상세</span>
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  // ===========================
+  // 선택 상태 관리
+  // ===========================
+  function toggleSelectAll() {
+    const selectAll = document.getElementById('selectAllCandidates').checked;
+    const checkboxes = document.querySelectorAll('.candidate-checkbox');
+    
+    checkboxes.forEach(cb => cb.checked = selectAll);
+    updateSelectionState();
+  }
+
+  function updateSelectionState() {
+    const checkboxes = document.querySelectorAll('.candidate-checkbox:checked');
+    selectedCandidates = Array.from(checkboxes).map(cb => {
+      const index = parseInt(cb.dataset.index);
+      return candidatesList[index];
+    });
+
+    const count = selectedCandidates.length;
+    const notification = document.getElementById('selectedCountNotification');
+    const bulkSection = document.getElementById('bulkAssignSection');
+    const countText = document.getElementById('selectedCountText');
+    const buttonText = document.getElementById('bulkAssignButtonText');
+
+    if (count > 0) {
+      notification.style.display = 'block';
+      bulkSection.style.display = 'block';
+      countText.textContent = `${count}명 선택됨`;
+      buttonText.textContent = `${count}명에게 프로모션 할당`;
+    } else {
+      notification.style.display = 'none';
+      bulkSection.style.display = 'none';
+    }
+  }
+
+  function clearSelection() {
+    document.getElementById('selectAllCandidates').checked = false;
+    document.querySelectorAll('.candidate-checkbox').forEach(cb => cb.checked = false);
+    updateSelectionState();
+  }
+
+  // ===========================
+  // 첫 결제 전용 프로모션 조회
+  // ===========================
+  async function loadFirstPaymentPromotions() {
+    try {
+      const response = await fetch('/admin/api/promotions', {
+        headers: {
+          'Authorization': 'Bearer ' + localStorage.getItem('admin_session_token')
+        }
+      });
+
+      const data = await response.json();
+      const promotions = (data.promotions || []).filter(p => p.is_active && p.first_payment_only);
+
+      const options = promotions.map(p => {
+        let discountInfo = '';
+        if (p.discount_type === 'free') {
+          discountInfo = `${p.free_months}개월 무료`;
+        } else if (p.discount_type === 'percent') {
+          discountInfo = `${p.discount_value}% 할인`;
+        } else if (p.discount_type === 'amount') {
+          discountInfo = `${p.discount_value.toLocaleString()}원 할인`;
+        }
+        return `<option value="${p.promotion_id}">${p.promotion_name} (${discountInfo})</option>`;
+      }).join('');
+
+      document.getElementById('bulkPromotionSelect').innerHTML = 
+        '<option value="">프로모션을 선택하세요</option>' + options;
+      document.getElementById('singlePromotionSelect').innerHTML = 
+        '<option value="">프로모션을 선택하세요</option>' + options;
+
+    } catch (error) {
+      console.error('프로모션 조회 오류:', error);
+    }
+  }
+
+  // ===========================
+  // 일괄 할당
+  // ===========================
+  async function executeBulkAssign() {
+    const promotionId = document.getElementById('bulkPromotionSelect').value;
+    const memo = document.getElementById('bulkAssignMemo').value.trim();
+
+    if (!promotionId) {
+      alert('프로모션을 선택해주세요.');
+      return;
+    }
+
+    if (selectedCandidates.length === 0) {
+      alert('할당 대상 회원을 선택해주세요.');
+      return;
+    }
+
+    if (!confirm(`${selectedCandidates.length}명에게 프로모션을 할당하시겠습니까?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/admin/api/assign-promotion', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + localStorage.getItem('admin_session_token'),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          promotion_id: promotionId,
+          user_ids: selectedCandidates.map(u => u.user_id),
+          memo: memo || null
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert(result.message || '프로모션이 할당되었습니다.');
+        clearSelection();
+        await loadCandidatesList();
+        await loadAssignmentList();
+      } else {
+        alert('할당 실패: ' + (result.error || '알 수 없는 오류'));
+      }
+
+    } catch (error) {
+      console.error('일괄 할당 오류:', error);
+      alert('할당 중 오류가 발생했습니다.');
+    }
+  }
+
+  // ===========================
+  // 회원 상세 모달
+  // ===========================
+  async function openUserDetailModal(userId) {
+    document.getElementById('userDetailModal').classList.add('is-active');
+    
+    const user = candidatesList.find(u => u.user_id === userId);
+    if (!user) {
+      alert('회원 정보를 찾을 수 없습니다.');
+      return;
+    }
+
+    currentUserDetail = user;
+
+    // 기본 정보 표시
+    document.getElementById('detailPharmacistName').textContent = user.pharmacist_name || '-';
+    document.getElementById('detailPharmacyName').textContent = user.pharmacy_name || '-';
+    document.getElementById('detailEmail').textContent = user.email || '-';
+    document.getElementById('detailPhone').textContent = user.pharmacist_phone || '-';
+    document.getElementById('detailBusinessNumber').textContent = user.business_number || '-';
+
+    // 상세 정보 로드
+    await loadUserPromotionHistory(userId, user.business_number);
+    await loadUserSubscriptionStatus(userId);
+    await loadUserPendingPromotions(userId);
+    checkAssignmentEligibility(user);
+  }
+
+  function closeUserDetailModal() {
+    document.getElementById('userDetailModal').classList.remove('is-active');
+    currentUserDetail = null;
+  }
+
+  // 프로모션 이력 조회
+  async function loadUserPromotionHistory(userId, businessNumber) {
+    try {
+      const response = await fetch(`/admin/api/users/${userId}/promotion-history?business_number=${businessNumber}`, {
+        headers: {
+          'Authorization': 'Bearer ' + localStorage.getItem('admin_session_token')
+        }
+      });
+
+      const data = await response.json();
+      const history = data.history || [];
+
+      const summaryDiv = document.getElementById('promotionHistorySummary');
+
+      if (history.length === 0) {
+        summaryDiv.innerHTML = '<p class="has-text-centered">✅ 프로모션 사용 이력이 없습니다 (신규 고객)</p>';
+        return;
+      }
+
+      summaryDiv.innerHTML = `
+        <table class="table is-fullwidth is-narrow">
+          <thead>
+            <tr>
+              <th>프로모션 코드</th>
+              <th>사용 개월</th>
+              <th>소진 여부</th>
+              <th>마지막 사용</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${history.map(h => `
+              <tr>
+                <td>${h.promotion_code}</td>
+                <td>${h.used_months}개월</td>
+                <td>${h.is_exhausted ? '<span class="tag is-danger">소진</span>' : '<span class="tag is-success">가능</span>'}</td>
+                <td>${h.last_applied_at ? new Date(h.last_applied_at).toLocaleString('ko-KR') : '-'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <p class="notification is-warning is-light">
+          ⚠️ 이 사업자는 과거 프로모션 혜택을 사용했습니다. 첫 결제 전용 프로모션은 할당할 수 없습니다.
+        </p>
+      `;
+
+    } catch (error) {
+      console.error('프로모션 이력 조회 오류:', error);
+      document.getElementById('promotionHistorySummary').innerHTML = 
+        '<p class="has-text-danger">조회 실패</p>';
+    }
+  }
+
+  // 구독 상태 조회
+  async function loadUserSubscriptionStatus(userId) {
+    try {
+      const response = await fetch(`/admin/api/users/${userId}/subscription-status`, {
+        headers: {
+          'Authorization': 'Bearer ' + localStorage.getItem('admin_session_token')
+        }
+      });
+
+      const data = await response.json();
+      const sub = data.subscription || {};
+      const payments = data.payments || [];
+
+      const summaryDiv = document.getElementById('subscriptionSummary');
+
+      summaryDiv.innerHTML = `
+        <div class="columns is-multiline">
+          <div class="column is-6">
+            <strong>현재 구독 상태:</strong> ${sub.status || '없음'}
+          </div>
+          <div class="column is-6">
+            <strong>다음 결제일:</strong> ${sub.next_billing_at ? new Date(sub.next_billing_at).toLocaleString('ko-KR') : '-'}
+          </div>
+          <div class="column is-6">
+            <strong>최근 결제 금액:</strong> ${payments.length > 0 ? payments[0].amount.toLocaleString() + '원' : '-'}
+          </div>
+          <div class="column is-6">
+            <strong>자동결제 여부:</strong> ${sub.status === 'active' ? '<span class="tag is-success">ON</span>' : '<span class="tag is-light">OFF</span>'}
+          </div>
+        </div>
+      `;
+
+    } catch (error) {
+      console.error('구독 상태 조회 오류:', error);
+      document.getElementById('subscriptionSummary').innerHTML = 
+        '<p class="has-text-danger">조회 실패</p>';
+    }
+  }
+
+  // 예약된 프로모션 조회
+  async function loadUserPendingPromotions(userId) {
+    try {
+      const response = await fetch(`/admin/api/users/${userId}/pending-promotions`, {
+        headers: {
+          'Authorization': 'Bearer ' + localStorage.getItem('admin_session_token')
+        }
+      });
+
+      const data = await response.json();
+      const pending = data.pending || [];
+
+      const listDiv = document.getElementById('pendingPromotionsList');
+
+      if (pending.length === 0) {
+        listDiv.innerHTML = '<p class="has-text-centered">예약된 프로모션이 없습니다</p>';
+        return;
+      }
+
+      listDiv.innerHTML = `
+        <table class="table is-fullwidth is-narrow">
+          <thead>
+            <tr>
+              <th>프로모션명</th>
+              <th>예약 시각</th>
+              <th>상태</th>
+              <th>적용 예정</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${pending.map(p => {
+              let statusBadge = '';
+              if (p.applied_at) {
+                statusBadge = '<span class="tag is-success status-applied">적용 완료</span>';
+              } else {
+                statusBadge = '<span class="tag is-warning status-reserved">예약됨</span>';
+              }
+
+              return `
+                <tr>
+                  <td>${p.promotion_name}</td>
+                  <td>${new Date(p.created_at).toLocaleString('ko-KR')}</td>
+                  <td>${statusBadge}</td>
+                  <td>${p.applied_at ? new Date(p.applied_at).toLocaleString('ko-KR') : '다음 결제 시'}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      `;
+
+    } catch (error) {
+      console.error('예약 프로모션 조회 오류:', error);
+      document.getElementById('pendingPromotionsList').innerHTML = 
+        '<p class="has-text-danger">조회 실패</p>';
+    }
+  }
+
+  // 할당 자격 체크
+  function checkAssignmentEligibility(user) {
+    const checkDiv = document.getElementById('assignmentEligibilityCheck');
+    const assignButton = document.getElementById('singleAssignButton');
+
+    if (!user.is_first_payment) {
+      checkDiv.innerHTML = `
+        <div class="notification is-danger is-light">
+          <strong>❌ 할당 불가</strong><br>
+          이 회원은 이미 결제 이력이 있거나, 과거 프로모션 혜택을 사용했습니다.<br>
+          첫 결제 전용 프로모션은 할당할 수 없습니다.
+        </div>
+      `;
+      assignButton.disabled = true;
+      return;
+    }
+
+    checkDiv.innerHTML = `
+      <div class="notification is-success is-light">
+        <strong>✅ 할당 가능</strong><br>
+        이 회원은 첫 결제 예정 고객입니다. 프로모션을 할당할 수 있습니다.
+      </div>
+    `;
+    assignButton.disabled = false;
+  }
+
+  // 개별 할당
+  async function executeSingleAssign() {
+    if (!currentUserDetail) {
+      alert('회원 정보를 찾을 수 없습니다.');
+      return;
+    }
+
+    const promotionId = document.getElementById('singlePromotionSelect').value;
+    const memo = document.getElementById('singleAssignMemo').value.trim();
+
+    if (!promotionId) {
+      alert('프로모션을 선택해주세요.');
+      return;
+    }
+
+    if (!confirm(`${currentUserDetail.pharmacist_name}님에게 프로모션을 할당하시겠습니까?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/admin/api/assign-promotion', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + localStorage.getItem('admin_session_token'),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          promotion_id: promotionId,
+          user_ids: [currentUserDetail.user_id],
+          memo: memo || null
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert('프로모션이 할당되었습니다.');
+        closeUserDetailModal();
+        await loadCandidatesList();
+        await loadAssignmentList();
+      } else {
+        alert('할당 실패: ' + (result.error || '알 수 없는 오류'));
+      }
+
+    } catch (error) {
+      console.error('개별 할당 오류:', error);
+      alert('할당 중 오류가 발생했습니다.');
+    }
+  }
+
+  // ===========================
+  // 할당 내역 조회
+  // ===========================
+  async function loadAssignmentList() {
+    try {
+      const response = await fetch('/admin/api/assign-promotion/assignments', {
+        headers: {
+          'Authorization': 'Bearer ' + localStorage.getItem('admin_session_token')
+        }
+      });
+
+      const data = await response.json();
+      const tbody = document.getElementById('assignmentTableBody');
+
+      if (!data.assignments || data.assignments.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="has-text-centered">할당 내역이 없습니다</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = data.assignments.map(assign => {
+        const user = assign.users || {};
+        const promo = assign.subscription_promotions || {};
+
+        let statusBadge = '';
+        if (assign.applied_at) {
+          statusBadge = '<span class="tag is-success status-applied">적용 완료</span>';
+        } else {
+          statusBadge = '<span class="tag is-warning status-reserved">예약됨</span>';
+        }
+
+        let discountInfo = '';
+        if (promo.discount_type === 'free') {
+          discountInfo = `${promo.free_months}개월 무료`;
+        } else if (promo.discount_type === 'percent') {
+          discountInfo = `${promo.discount_value}% 할인`;
+        } else if (promo.discount_type === 'amount') {
+          discountInfo = `${promo.discount_value.toLocaleString()}원 할인`;
+        }
+
+        const sourceBadge = assign.source === 'admin_assigned' 
+          ? '<span class="tag is-info">관리자</span>' 
+          : (assign.source === 'referral' 
+            ? '<span class="tag is-link">추천인</span>' 
+            : '<span class="tag is-light">사용자</span>');
+
+        const canCancel = !assign.applied_at;
+
+        return `
+          <tr>
+            <td>
+              <strong>${user.pharmacy_name || '(알 수 없음)'}</strong><br>
+              <small>${user.email || ''}</small>
+            </td>
+            <td>${promo.promotion_name || '(알 수 없음)'}<br><small>${promo.promotion_code || ''}</small></td>
+            <td>${discountInfo}</td>
+            <td>${new Date(assign.created_at).toLocaleString('ko-KR')}</td>
+            <td>${assign.applied_at ? new Date(assign.applied_at).toLocaleString('ko-KR') : '-'}</td>
+            <td>${statusBadge}</td>
+            <td>${sourceBadge}</td>
+            <td>
+              ${canCancel ? `
+                <button class="button is-danger is-small" onclick="cancelAssignment('${assign.pending_id}')">
+                  <span class="icon"><i class="fas fa-times"></i></span>
+                </button>
+              ` : '-'}
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+    } catch (error) {
+      console.error('할당 내역 조회 오류:', error);
+      document.getElementById('assignmentTableBody').innerHTML = 
+        '<tr><td colspan="8" class="has-text-centered has-text-danger">오류가 발생했습니다</td></tr>';
+    }
+  }
+
+  async function cancelAssignment(pendingId) {
+    if (!confirm('이 할당을 취소하시겠습니까?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/admin/api/assign-promotion/' + pendingId, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': 'Bearer ' + localStorage.getItem('admin_session_token')
+        }
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert('할당이 취소되었습니다.');
+        await loadAssignmentList();
+        await loadCandidatesList();
+      } else {
+        alert('취소 실패: ' + (result.error || '알 수 없는 오류'));
+      }
+
+    } catch (error) {
+      console.error('할당 취소 오류:', error);
+      alert('취소 중 오류가 발생했습니다.');
+    }
+  }
+
+  // 페이지 초기화
+  initPromotionAssignPage();
+</script>

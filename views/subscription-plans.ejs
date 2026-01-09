@@ -399,7 +399,7 @@
 
       plans.forEach((plan, index) => {
         const card = document.createElement('div');
-        card.className = 'plan-card' + (index === 1 ? ' recommended' : '');
+        card.className = 'plan-card' + (index === 0 ? ' recommended' : '');
         
         const features = [
           '실시간 복약 순응도 모니터링',

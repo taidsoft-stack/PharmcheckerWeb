@@ -243,6 +243,7 @@ public,billing_payments,requested_at,timestamp with time zone,NO,null,결제 요
 public,billing_payments,approved_at,timestamp with time zone,YES,null,결제가 승인된 시각 (성공 시)
 public,billing_payments,created_at,timestamp with time zone,NO,now(),결제 이력 레코드 생성 시각
 public,billing_payments,payment_method_id,uuid,YES,null,결제에 사용된 결제수단 ID (payment_methods 참조)
+public,billing_payments,promotion_id,uuid,YES,null,실제 결제에 적용된 프로모션 ID (0원 결제 포함)
 public,doctors,doctor_id,integer,NO,null,null
 public,doctors,tenant_id,uuid,NO,auth.uid(),null
 public,doctors,doctor_name,text,YES,null,null
@@ -324,17 +325,22 @@ public,pending_user_promotions,user_id,uuid,NO,null,프로모션이 예약된 �
 public,pending_user_promotions,promotion_id,uuid,NO,null,예약된 프로모션 ID (subscription_promotions 참조)
 public,pending_user_promotions,created_at,timestamp with time zone,NO,now(),프로모션 예약 생성 시각
 public,pending_user_promotions,referral_code_id,uuid,YES,null,회원가입 시 입력된 추천인 코드 ID (결제 성공 시 사용 횟수 증가에 사용)
-public,pending_user_promotions,applied_at,timestamp with time zone,YES,null,프로모션 실제 적용 시각 (결제 완료 시). NULL = 예약만 된 상태
+public,pending_user_promotions,applied_at,timestamp with time zone,YES,null,프로모션이 실제 결제에 적용된 시각. NULL이면 예약 상태
+public,pending_user_promotions,payment_id,uuid,YES,null,"프로모션이 적용된 결제 ID (billing_payments.payment_id 참조, 0원 결제 포함)"
+public,pending_user_promotions,source,text,YES,null,"프로모션 유입 경로 (user_selected, referral, admin_assigned)"
+public,pending_user_promotions,status,character varying,YES,'reserved'::character varying,"예약 상태: reserved(예약), selected(선택), applied(적용완료), expired(만료), cancelled(취소)"
 public,promotion_usage_history,history_id,uuid,NO,gen_random_uuid(),null
-public,promotion_usage_history,business_number,text,NO,null,"사업자번호 (숫자만 저장, 개인정보 아님)"
+public,promotion_usage_history,business_number,text,NO,null,사업자번호 (숫자만 저장). 개인정보 아님. 재가입 악용 방지용 키
 public,promotion_usage_history,promotion_code,text,NO,null,프로모션 코드 (FREE_2MONTH 등)
 public,promotion_usage_history,first_used_at,timestamp with time zone,NO,now(),null
 public,promotion_usage_history,last_used_at,timestamp with time zone,YES,null,null
 public,promotion_usage_history,used_months,integer,NO,0,누적 사용 개월 수
 public,promotion_usage_history,is_exhausted,boolean,NO,false,혜택 소진 여부 (true면 재사용 불가)
 public,promotion_usage_history,created_at,timestamp with time zone,NO,now(),null
+public,promotion_usage_history,promotion_id,uuid,YES,null,사용된 프로모션 ID (subscription_promotions 참조)
+public,promotion_usage_history,last_applied_at,timestamp with time zone,YES,null,프로모션 혜택이 마지막으로 적용된 시각
 public,referral_codes,referral_code_id,uuid,NO,gen_random_uuid(),null
-public,referral_codes,code,text,NO,null,회원가입 시 입력하는 추천인 코드 문자열
+public,referral_codes,code,text,NO,null,"회원가입 시 입력하는 추천인 코드 (UNIQUE, 중복 불가)"
 public,referral_codes,promotion_id,uuid,NO,null,추천인 코드 사용 시 적용될 프로모션 ID
 public,referral_codes,description,text,YES,null,"영업용, 이벤트용 등 코드 설명"
 public,referral_codes,max_uses,integer,YES,null,추천인 코드 최대 사용 횟수 (NULL이면 제한 없음)
@@ -408,13 +414,16 @@ public,subscription_plans,created_at,timestamp with time zone,NO,now(),상품 �
 public,subscription_promotions,promotion_id,uuid,NO,gen_random_uuid(),프로모션 고유 ID
 public,subscription_promotions,promotion_code,text,NO,null,프로모션 코드 (관리 및 내부 식별용)
 public,subscription_promotions,promotion_name,text,NO,null,프로모션 이름 (관리자/운영자용 표시명)
-public,subscription_promotions,discount_type,text,NO,null,"할인 유형 (percent=퍼센트 할인, amount=정액 할인, free=완전 무료)"
+public,subscription_promotions,discount_type,text,NO,null,"할인 유형 (percent=퍼센트, amount=정액, free_period=기간 무료)"
 public,subscription_promotions,discount_value,integer,YES,null,"할인 값 (percent일 경우 %, amount일 경우 원 단위 / free일 경우 NULL)"
-public,subscription_promotions,free_months,integer,YES,null,"무료 제공 개월 수 (예: 12 = 1년 무료, NULL = 기간 제한 없음)"
+public,subscription_promotions,free_months,integer,YES,null,무료 제공 개월 수 (free_period 타입일 때만 사용)
 public,subscription_promotions,start_at,timestamp with time zone,YES,null,프로모션 적용 시작 시각 (NULL = 즉시 적용)
 public,subscription_promotions,end_at,timestamp with time zone,YES,null,프로모션 적용 종료 시각 (NULL = 종료 없음)
 public,subscription_promotions,is_active,boolean,NO,true,프로모션 활성화 여부
 public,subscription_promotions,created_at,timestamp with time zone,NO,now(),프로모션 생성 시각
+public,subscription_promotions,first_payment_only,boolean,NO,true,true인 경우 최초 결제(첫 구독)에만 적용 가능한 프로모션
+public,subscription_promotions,max_usage_per_user,integer,YES,1,사용자 1명당 해당 프로모션을 사용할 수 있는 최대 횟수 (NULL = 무제한)
+public,subscription_promotions,allow_duplicate,boolean,NO,false,다른 프로모션과 중복 적용 가능 여부
 public,support_attachments,attachment_id,uuid,NO,gen_random_uuid(),첨부파일의 UUID 식별자
 public,support_attachments,ticket_id,uuid,NO,null,첨부파일이 연결된 문의(ticket) ID
 public,support_attachments,file_path,text,NO,null,Supabase Storage 내 파일 경로

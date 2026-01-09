@@ -21,6 +21,14 @@ const viewsPath = process.env.NETLIFY
 app.set("views", viewsPath);
 app.set("view engine", "ejs");
 
+// COOP 헤더 설정 (Google OAuth 허용)
+app.use((req, res, next) => {
+  // Google OAuth가 작동하도록 COOP 완전 해제
+  res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  next();
+});
+
 app.use(logger("dev"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));

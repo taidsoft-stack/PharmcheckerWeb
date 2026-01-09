@@ -364,6 +364,27 @@ router.post('/api/signup', async function (req, res) {
     // 3. auth.users.id를 그대로 사용 (UUID 일치)
     const userId = authUserId;
 
+    // 3.5 재가입 여부 확인 (사업자번호 기준)
+    const businessNumberClean = businessNumber.replace(/-/g, '');
+    
+    // promotion_usage_history에서 프로모션 사용 이력 확인
+    const { data: promotionHistory } = await supabase
+      .from('promotion_usage_history')
+      .select('history_id')
+      .eq('business_number', businessNumberClean)
+      .limit(1);
+    
+    const hasPromotionHistory = promotionHistory && promotionHistory.length > 0;
+    
+    // 재가입 여부 = 프로모션 사용 이력이 있으면 재가입자
+    const isReturningCustomer = hasPromotionHistory;
+    
+    console.log('🔍 재가입 여부 확인:', {
+      businessNumber: businessNumberClean,
+      hasPromotionHistory,
+      isReturningCustomer
+    });
+
     // 4. 사용자 데이터 삽입
     const { data, error } = await supabase
       .from('users')
@@ -379,7 +400,8 @@ router.post('/api/signup', async function (req, res) {
           address: address,
           detail_address: detailAddress || null,
           google_picture: googlePicture || null,
-          is_active: true
+          is_active: true,
+          is_returning_customer: isReturningCustomer  // ✅ 재가입 여부 저장
         }
       ])
       .select()
@@ -394,22 +416,46 @@ router.post('/api/signup', async function (req, res) {
       });
     }
 
-    // 추천인 코드가 유효한 경우 pending_user_promotions에 저장
+    // 추천인 코드가 유효한 경우 → 프로모션 사용 이력 확인 후 pending_user_promotions 저장
     if (validPromotion) {
-      const { error: pendingError } = await supabase
-        .from('pending_user_promotions')
-        .insert({
-          user_id: userId,
-          promotion_id: validPromotion.promotionId,
-          referral_code_id: validPromotion.referralCodeId,  // 추천인 코드 ID 저장
-          created_at: new Date().toISOString()
-        });
+      // 📌 탈퇴 후 재가입 검증: 동일 사업자번호로 프로모션 사용 이력 확인
+      const businessNumberClean = businessNumber.replace(/-/g, '');
+      console.log('🔍 프로모션 사용 이력 조회:', businessNumberClean);
+      
+      const { data: usageHistory, error: usageError } = await supabase
+        .from('promotion_usage_history')
+        .select('promotion_id, business_number, is_exhausted, first_used_at')
+        .eq('business_number', businessNumberClean);
 
-      if (pendingError) {
-        console.error('프로모션 예약 저장 실패:', pendingError);
-        // 프로모션 저장 실패는 회원가입 실패로 처리하지 않음 (사용자 경험 고려)
+      if (usageError) {
+        console.error('❌ promotion_usage_history 조회 실패:', usageError);
       } else {
-        console.log('프로모션 예약 완료:', userId, '->', validPromotion.promotionId, 'referral:', validPromotion.referralCodeId);
+        console.log('📊 조회 결과:', usageHistory ? usageHistory.length + '건' : 'null', usageHistory);
+      }
+
+      const hasPromotionHistory = usageHistory && usageHistory.length > 0;
+
+      if (!hasPromotionHistory) {
+        // ✅ 프로모션 사용 이력 없음 → pending_user_promotions에 저장
+        const { error: pendingError } = await supabase
+          .from('pending_user_promotions')
+          .insert({
+            user_id: userId,
+            promotion_id: validPromotion.promotionId,
+            referral_code_id: validPromotion.referralCodeId,
+            source: 'referral'
+          });
+
+        if (pendingError) {
+          console.error('프로모션 예약 저장 실패:', pendingError);
+          // 프로모션 저장 실패는 회원가입 실패로 처리하지 않음 (사용자 경험 고려)
+        } else {
+          console.log('✅ 프로모션 예약 완료 (사용 이력 없음):', userId, '->', validPromotion.promotionId);
+        }
+      } else {
+        // ⚠️ 프로모션 사용 이력 있음 → 추천인 코드 무시 (재가입 케이스)
+        console.log('⚠️ 프로모션 사용 이력 존재 - 추천인 코드 무시:', businessNumberClean, '(사용 이력:', usageHistory.length, '건)');
+        console.log('  → 기존 사용 이력:', usageHistory.map(h => `${h.promotion_id} (${h.first_used_at})`).join(', '));
       }
     }
 
@@ -752,7 +798,9 @@ router.get('/subscription/payment', async function (req, res) {
           discount_type,
           discount_value,
           free_months,
-          promotion_code
+          promotion_code,
+          first_payment_only,
+          max_usage_per_user
         ),
         referral_codes (
           code
@@ -763,8 +811,56 @@ router.get('/subscription/payment', async function (req, res) {
       .order('created_at', { ascending: false });
 
     if (pendingPromotions && pendingPromotions.length > 0) {
+      const businessNumberClean = userData?.business_number?.replace(/[^0-9]/g, '') || '';
+      
+      // ✅ 첫 결제 판단 (LLM 설계 기준)
+      // 1. billing_payments 테이블에서 성공한 유료 결제(amount > 0) 이력 확인
+      const { data: userPayments } = await supabase
+        .from('billing_payments')
+        .select('payment_id')
+        .eq('user_id', userId)
+        .in('status', ['paid', 'success'])
+        .gt('amount', 0);
+      
+      const hasPaymentHistory = userPayments && userPayments.length > 0;
+      
+      // 2. promotion_usage_history에서 동일 사업자번호의 이력 확인 (탈퇴 후 재가입 대응)
+      const { data: usageHistory } = await supabase
+        .from('promotion_usage_history')
+        .select('promotion_id, business_number, is_exhausted')
+        .eq('business_number', businessNumberClean);
+      
+      // ✅ 프로모션 사용 이력이 하나라도 있으면 재사용 불가 (is_exhausted 무관)
+      const hasPromotionHistory = usageHistory && usageHistory.length > 0;
+      
+      // ✅ 첫 결제 여부: billing_payments AND promotion_usage_history 둘 다 없어야 함
+      const isFirstPayment = !hasPaymentHistory && !hasPromotionHistory;
+      
+      // max_usage_per_user 체크용 카운트
+      const promotionUsageCount = {};
+      if (usageHistory) {
+        usageHistory.forEach(h => {
+          promotionUsageCount[h.promotion_id] = (promotionUsageCount[h.promotion_id] || 0) + 1;
+        });
+      }
+      
       pendingPromotions.forEach(promo => {
         const promotionData = promo.subscription_promotions;
+        
+        // first_payment_only 체크: 첫 결제에만 사용 가능한 프로모션
+        if (promotionData.first_payment_only && !isFirstPayment) {
+          console.log(`프로모션 제외 (first_payment_only): ${promotionData.promotion_name}`);
+          return;
+        }
+        
+        // max_usage_per_user 체크: 사용자당 최대 사용 횟수
+        if (promotionData.max_usage_per_user) {
+          const usageCount = promotionUsageCount[promo.promotion_id] || 0;
+          if (usageCount >= promotionData.max_usage_per_user) {
+            console.log(`프로모션 제외 (max_usage_per_user 초과): ${promotionData.promotion_name} (사용 ${usageCount}/${promotionData.max_usage_per_user})`);
+            return;
+          }
+        }
         
         // 무료 프로모션이고 이미 사용한 경우 제외
         if (promotionData.discount_type === 'free' && !canUseFreePromotion) {
@@ -808,8 +904,11 @@ router.get('/subscription/billing-success', async function (req, res) {
     // originalPrice: 플랜의 원래 가격
     const finalAmount = parseInt(amount);
     const planOriginalPrice = originalPrice ? parseInt(originalPrice) : finalAmount;
+    
+    // referralCodeId 정규화: "null" 문자열을 null로 변환
+    const normalizedReferralCodeId = (referralCodeId === 'null' || referralCodeId === 'undefined' || !referralCodeId) ? null : referralCodeId;
 
-    console.log('빌링키 발급 시작:', { authKey, customerKey, planId, userId, finalAmount, planOriginalPrice, promotionId, referralCodeId });
+    console.log('빌링키 발급 시작:', { authKey, customerKey, planId, userId, finalAmount, planOriginalPrice, promotionId, referralCodeId: normalizedReferralCodeId });
 
     // ===== 1단계: 중복 구독 확인 (이미 활성 구독이 있으면 에러) =====
     const { data: existingSubscription } = await supabase
@@ -1060,7 +1159,7 @@ router.get('/subscription/billing-success', async function (req, res) {
           user_id: userId,
           subscription_id: subscriptionId,
           promotion_id: promotionId,
-          referral_code_id: referralCodeId || null,
+          referral_code_id: normalizedReferralCodeId,
           free_months: promotionData.free_months,
           granted_at: new Date().toISOString(),
           effective_start: now.toISOString(),
@@ -1087,8 +1186,10 @@ router.get('/subscription/billing-success', async function (req, res) {
           .insert({
             business_number: businessNumberClean,
             promotion_code: promotionData.promotion_code,
+            promotion_id: promotionId,
             used_months: 1,
-            is_exhausted: true
+            is_exhausted: true,
+            last_applied_at: new Date().toISOString()
           });
 
         if (historyError && historyError.code !== '23505') {
@@ -1101,6 +1202,7 @@ router.get('/subscription/billing-success', async function (req, res) {
 
     // ===== 10단계: 결제 기록 저장 (billing_payments - 0원/유료 모두 기록) =====
     // 📌 payment_key: 0원 결제는 NULL (PG 호출 안 함), 유료 결제는 토스에서 발급받음
+    // 📌 promotion_id: 실제 결제에 적용된 프로모션 ID 저장 (Source of Truth)
     const paymentData = {
       payment_id: uuidv4(),
       subscription_id: subscriptionId,
@@ -1110,6 +1212,7 @@ router.get('/subscription/billing-success', async function (req, res) {
       billing_key: billingKey,
       payment_method_id: paymentMethodId,
       amount: finalAmount,
+      promotion_id: promotionId || null,  // ✅ 실제 적용된 프로모션 저장
       status: 'success',
       requested_at: new Date().toISOString(),
       approved_at: new Date().toISOString(),
@@ -1130,30 +1233,51 @@ router.get('/subscription/billing-success', async function (req, res) {
       paymentType: finalAmount === 0 ? '무료 프로모션' : '유료 결제'
     });
 
-    // ===== 11단계: pending_user_promotions 적용 완료 표시 & referral_codes.used_count 증가 =====
-    if (promotionId && promotionId !== '' && referralCodeId && referralCodeId !== '') {
-      // pending 적용 완료 표시 (applied_at UPDATE)
-      const { error: updateError } = await supabase
+    // ===== 11단계: pending_user_promotions 상태 관리 & referral_codes.used_count 증가 =====
+    if (promotionId && promotionId !== '') {
+      // ✅ 적용된 프로모션: status = 'applied', applied_at, payment_id 설정
+      const { error: appliedError } = await supabase
         .from('pending_user_promotions')
-        .update({ applied_at: new Date().toISOString() })
+        .update({ 
+          status: 'applied',
+          applied_at: new Date().toISOString(),
+          payment_id: paymentData.payment_id
+        })
         .eq('promotion_id', promotionId)
         .eq('user_id', userId)
         .is('applied_at', null);
 
-      if (updateError) {
-        console.warn('pending_user_promotions 업데이트 실패:', updateError);
+      if (appliedError) {
+        console.warn('⚠️ pending_user_promotions 적용 업데이트 실패:', appliedError);
       } else {
-        console.log('프로모션 적용 완료 (applied_at 설정):', new Date().toISOString());
+        console.log('✅ 프로모션 적용 완료:', { promotionId, status: 'applied' });
+      }
+
+      // ❌ 적용되지 않은 나머지 예약 프로모션: status = 'expired'
+      const { error: expiredError } = await supabase
+        .from('pending_user_promotions')
+        .update({ status: 'expired' })
+        .eq('user_id', userId)
+        .is('applied_at', null)
+        .neq('promotion_id', promotionId)
+        .in('status', ['reserved', 'selected']);
+
+      if (expiredError) {
+        console.warn('⚠️ 나머지 프로모션 만료 처리 실패:', expiredError);
+      } else {
+        console.log('✅ 나머지 예약 프로모션 만료 처리 완료');
       }
 
       // 추천인 코드 사용 횟수 증가
-      const { data: incrementResult } = await supabase
-        .rpc('increment_referral_code_usage', { p_referral_code_id: referralCodeId });
+      if (referralCodeId && referralCodeId !== '') {
+        const { data: incrementResult } = await supabase
+          .rpc('increment_referral_code_usage', { p_referral_code_id: referralCodeId });
 
-      if (incrementResult) {
-        console.log('추천인 코드 사용 횟수 증가 성공:', referralCodeId);
-      } else {
-        console.warn('추천인 코드 사용 횟수 증가 실패 (max_uses 초과 또는 만료)');
+        if (incrementResult) {
+          console.log('✅ 추천인 코드 사용 횟수 증가:', referralCodeId);
+        } else {
+          console.warn('⚠️ 추천인 코드 사용 횟수 증가 실패 (max_uses 초과 또는 만료)');
+        }
       }
     }
 
