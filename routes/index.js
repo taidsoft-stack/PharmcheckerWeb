@@ -2167,40 +2167,23 @@ router.get('/api/download/latest', requireAuth, async (req, res) => {
       });
     }
 
-    // 모든 파일에 대한 Signed URL 생성
-    const fileUrls = await Promise.all(
-      downloadFiles.map(async (file) => {
-        const { data: urlData, error: signError } = await supabaseAdmin.storage
-          .from('releases')
-          .createSignedUrl(`pharmchecker/downloads/${file.name}`, 3600);
-        
-        if (signError) {
-          console.error(`Signed URL 생성 오류 (${file.name}):`, signError);
-          return null;
-        }
-        
-        return {
-          filename: file.name,
-          downloadUrl: urlData.signedUrl,
-          size: file.metadata?.size,
-          createdAt: file.created_at
-        };
-      })
-    );
-
-    // 실패한 파일 제외
-    const validUrls = fileUrls.filter(url => url !== null);
-
-    if (validUrls.length === 0) {
-      return res.status(500).json({ 
-        success: false, 
-        message: '다운로드 링크 생성 중 오류가 발생했습니다.' 
-      });
-    }
+    // 모든 파일에 대한 Public URL 생성
+    const fileUrls = downloadFiles.map((file) => {
+      const { data: urlData } = supabaseAdmin.storage
+        .from('releases')
+        .getPublicUrl(`pharmchecker/downloads/${file.name}`);
+      
+      return {
+        filename: file.name,
+        downloadUrl: urlData.publicUrl,
+        size: file.metadata?.size,
+        createdAt: file.created_at
+      };
+    });
 
     res.json({
       success: true,
-      files: validUrls
+      files: fileUrls
     });
 
   } catch (error) {

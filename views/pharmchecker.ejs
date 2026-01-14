@@ -891,6 +891,9 @@
       
       // 구독 상태 확인
       await checkSubscriptionStatus();
+      
+      // 로그인한 회원이면 다운로드 버튼 표시
+      document.getElementById('downloadButtonGroup').style.display = 'flex';
     });
     
     // 드롭다운 토글
@@ -974,7 +977,6 @@
       
       const btn = document.getElementById('subscribePlanBtn');
       const statusText = document.getElementById('subscriptionStatus');
-      const downloadBtnGroup = document.getElementById('downloadButtonGroup');
       
       try {
         const response = await fetch(`/api/subscription/my`, {
@@ -985,7 +987,7 @@
         const data = await response.json();
         
         if (data.success) {
-          // 이미 구독 중인 경우 버튼 비활성화 및 다운로드 버튼 표시
+          // 이미 구독 중인 경우 버튼 비활성화
           btn.style.opacity = '0.5';
           btn.style.cursor = 'not-allowed';
           btn.style.pointerEvents = 'none';
@@ -993,27 +995,20 @@
           
           statusText.textContent = `✓ ${data.subscription.planName} 플랜을 사용 중입니다`;
           statusText.style.display = 'block';
-          
-          // 다운로드 버튼 표시
-          downloadBtnGroup.style.display = 'flex';
         } else {
           // 구독 없는 경우
           btn.style.opacity = '1';
           btn.style.cursor = 'pointer';
           btn.style.pointerEvents = 'auto';
           btn.textContent = '구독 플랜 선택하기';
-          
-          // 다운로드 버튼 숨김
-          downloadBtnGroup.style.display = 'none';
         }
       } catch (error) {
         console.log('구독 상태 확인 중 오류 (구독 없음):', error);
-        // 오류 시에도 버튼 활성화 및 다운로드 버튼 숨김
+        // 오류 시에도 버튼 활성화
         btn.style.opacity = '1';
         btn.style.cursor = 'pointer';
         btn.style.pointerEvents = 'auto';
         btn.textContent = '구독 플랜 선택하기';
-        downloadBtnGroup.style.display = 'none';
       }
     }
     
