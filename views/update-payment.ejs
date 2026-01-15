@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>결제수단 변경 - 팜체커</title>
-  <link rel="stylesheet" href="/bulma.min.css">
+  <title>결제수단 변경 - 팜체커</title>  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>  <link rel="stylesheet" href="/bulma.min.css">
   <style>    /* 헤더 공통 스타일 */
     .header {
       position: fixed;
@@ -241,16 +240,53 @@
 
   <script src="https://js.tosspayments.com/v2/standard"></script>
   <script>
-    const userId = localStorage.getItem('userId');
-    if (!userId) {
-      alert('로그인이 필요합니다.');
-      window.location.href = '/login';
+    // Supabase 클라이언트 초기화
+    const supabaseClient = window.supabase.createClient(
+      'https://gitbtujexmsjfixgeoha.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpdGJ0dWpleG1zamZpeGdlb2hhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY0NzA5MDIsImV4cCI6MjA4MjA0NjkwMn0.BNN8hauH8NdHZ4vopW_CQ_iK9CR55nfp3JQwuTjrG48'
+    );
+    
+    let currentUser = null;
+    let accessToken = null;
+    let userId = null;
+    
+    // 세션 만료 감지 리스너 설정
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        console.log('세션이 만료되었습니다. 로그인 페이지로 이동합니다.');
+        alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+        window.location.href = '/login';
+      } else if (event === 'TOKEN_REFRESHED' && session) {
+        console.log('토큰이 갱신되었습니다.');
+        accessToken = session.access_token;
+      }
+    });
+    
+    // 세션 확인 및 사용자 정보 로드
+    async function initUser() {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      
+      if (!session) {
+        alert('로그인이 필요합니다.');
+        window.location.href = '/login';
+        return;
+      }
+      
+      currentUser = session.user;
+      accessToken = session.access_token;
+      userId = currentUser.id;
+      
+      // 헤더 사용자 정보 표시
+      const userName = currentUser.user_metadata?.name || '게스트';
+      document.getElementById('userName').textContent = userName;
+      document.getElementById('userInitial').textContent = userName.charAt(0).toUpperCase();
+      
+      // 결제위젯 초기화
+      await initPaymentWidget();
     }
-
-    // 헤더 사용자 정보 표시
-    const userName = localStorage.getItem('name') || '게스트';
-    document.getElementById('userName').textContent = userName;
-    document.getElementById('userInitial').textContent = userName.charAt(0).toUpperCase();
+    
+    // 페이지 로드 시 실행
+    window.addEventListener('DOMContentLoaded', initUser);
 
     // 드롭다운 토글
     function toggleDropdown() {
@@ -270,19 +306,18 @@
     });
 
     // 로그아웃
-    function logout() {
+    async function logout() {
       if (confirm('로그아웃 하시겠습니까?')) {
-        localStorage.clear();
-        sessionStorage.clear();
+        await supabaseClient.auth.signOut();
         window.location.href = '/login';
       }
     }
 
     // 프로필 보기
     function viewProfile() {
-      const userName = localStorage.getItem('name') || '게스트';
-      const userEmail = localStorage.getItem('email') || '이메일 없음';
-      const pharmacyName = localStorage.getItem('pharmacyName') || '약국명 없음';
+      const userName = currentUser?.user_metadata?.name || '게스트';
+      const userEmail = currentUser?.email || '이메일 없음';
+      const pharmacyName = currentUser?.user_metadata?.pharmacyName || '약국명 없음';
       alert(`프로필 정보\n\n이름: ${userName}\n이메일: ${userEmail}\n약국명: ${pharmacyName}`);
     }
 
@@ -326,8 +361,8 @@
           method: 'CARD',
           successUrl: window.location.origin + '/api/subscription/update-payment-success',
           failUrl: window.location.origin + '/update-payment?error=billing_auth_failed',
-          customerEmail: localStorage.getItem('email') || '',
-          customerName: localStorage.getItem('name') || '고객'
+          customerEmail: currentUser?.email || '',
+          customerName: currentUser?.user_metadata?.name || '고객'
         });
 
         // authKey는 successUrl로 리다이렉트 시 쿼리파라미터로 전달됨

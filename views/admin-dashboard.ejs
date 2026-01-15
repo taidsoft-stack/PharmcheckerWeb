@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PharmChecker 운영 대시보드</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
@@ -98,7 +99,7 @@
 
         <p class="menu-label">구독 관리</p>
         <ul class="menu-list">
-          <li><a onclick="loadPage('users')">
+          <li><a href="/admin/users">
             <i class="fas fa-users"></i> 회원 관리
           </a></li>
           <li><a onclick="window.location.href='/admin/mobile'">
@@ -457,38 +458,24 @@
       window.history.replaceState(null, '', '/admin');
     }
     
-    // 로그인 확인
-    function checkAuth() {
-      const sessionToken = localStorage.getItem('admin_session_token');
-      if (!sessionToken) {
-        window.location.href = '/admin';
-        return;
-      }
-      loadAdminInfo();
-    }
+    // 전역 Supabase 클라이언트 (한 번만 생성, 세션 자동 복원)
+    const supabaseClient = window.supabase.createClient(
+      'https://gitbtujexmsjfixgeoha.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpdGJ0dWpleG1zamZpeGdlb2hhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY0NzA5MDIsImV4cCI6MjA4MjA0NjkwMn0.BNN8hauH8NdHZ4vopW_CQ_iK9CR55nfp3JQwuTjrG48'
+    );
+    
+    // 로그인 확인 - onAuthStateChange 리스너로 대체됨 (아래 참조)
 
     // 관리자 정보 로드
     async function loadAdminInfo() {
       try {
-        // 쿠키에서 토큰 가져오기
-        const cookies = document.cookie.split(';').reduce((acc, cookie) => {
-          const trimmed = cookie.trim();
-          const eqIndex = trimmed.indexOf('=');
-          if (eqIndex > 0) {
-            const key = trimmed.substring(0, eqIndex);
-            const value = trimmed.substring(eqIndex + 1);
-            acc[key] = value;
-          }
-          return acc;
-        }, {});
-        const token = cookies['admin_session_token'] || localStorage.getItem('admin_session_token');
+        // localStorage에서 토큰 가져오기
+        const token = localStorage.getItem('admin_session_token');
         
         if (!token) {
-          throw new Error('토큰 없음');
+          console.error('토큰 없음 - 관리자 정보 로드 실패');
+          return;
         }
-        
-        // localStorage에도 저장 (호환성)
-        localStorage.setItem('admin_session_token', token);
         
         const response = await fetch('/admin/api/me', {
           headers: {
@@ -497,27 +484,18 @@
         });
         
         if (!response.ok) {
-          throw new Error('인증 실패');
+          console.error('관리자 정보 API 실패:', response.status);
+          return;
         }
         
         const data = await response.json();
-        document.getElementById('adminName').textContent = data.admin_name + ' (' + data.email + ')';
+        const adminNameEl = document.getElementById('adminName');
+        if (adminNameEl) {
+          adminNameEl.textContent = data.admin_name + ' (' + data.email + ')';
+        }
+        console.log('관리자 정보 로드 완료:', data);
       } catch (error) {
         console.error('관리자 정보 로드 실패:', error);
-        // 인증 실패 시 모든 세션 정보 삭제
-        localStorage.removeItem('admin_session_token');
-        
-        // 쿠키 삭제
-        const cookiesToDelete = [
-          'admin_session_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT',
-          'admin_session_token=; path=/admin; expires=Thu, 01 Jan 1970 00:00:00 GMT',
-          'admin_session_token=; domain=' + window.location.hostname + '; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
-        ];
-        cookiesToDelete.forEach(cookie => document.cookie = cookie);
-        
-        // 로그인 페이지로 이동
-        alert('세션이 만료되었습니다. 다시 로그인해주세요.');
-        window.location.href = '/admin';
       }
     }
 
@@ -581,10 +559,22 @@
           }
         });
         
+        // 401 오류 시 로그인 페이지로 리다이렉트
+        if (response.status === 401) {
+          console.log('인증 실패 - 로그인 페이지로 이동');
+          localStorage.removeItem('admin_session_token');
+          window.location.href = '/admin/login';
+          return;
+        }
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const activities = await response.json();
         const tbody = document.getElementById('recentActivities');
         
-        if (activities.length === 0) {
+        if (!activities || !Array.isArray(activities) || activities.length === 0) {
           tbody.innerHTML = '<tr><td colspan="4" class="has-text-centered">최근 활동이 없습니다</td></tr>';
           return;
         }
@@ -600,6 +590,10 @@
         
       } catch (error) {
         console.error('활동 로그 로드 실패:', error);
+        const tbody = document.getElementById('recentActivities');
+        if (tbody) {
+          tbody.innerHTML = '<tr><td colspan="4" class="has-text-centered has-text-danger">활동 로그를 불러올 수 없습니다</td></tr>';
+        }
       }
     }
 
@@ -1398,6 +1392,84 @@
 
     // 초기화 - 즉시 실행
     console.log('대시보드 초기화 시작');
+    console.log('현재 URL:', window.location.href);
+    console.log('URL 해시:', window.location.hash);
+    
+    // Auth 상태 변경 리스너 (OAuth 콜백 처리)
+    supabaseClient.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth 상태 변경:', event, session ? '세션 있음' : '세션 없음');
+      
+      if (event === 'INITIAL_SESSION') {
+        // OAuth 콜백 처리 (URL 해시 확인)
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        console.log('URL 해시 파라미터:', {
+          hasAccessToken: hashParams.has('access_token'),
+          hasRefreshToken: hashParams.has('refresh_token'),
+          allParams: Array.from(hashParams.keys())
+        });
+        
+        if (hashParams.has('access_token')) {
+          console.log('OAuth 콜백 감지 - URL 해시에서 토큰 추출');
+          
+          const accessToken = hashParams.get('access_token');
+          const refreshToken = hashParams.get('refresh_token');
+          
+          console.log('토큰 추출 완료:', {
+            hasAccessToken: !!accessToken,
+            hasRefreshToken: !!refreshToken,
+            tokenLength: accessToken?.length
+          });
+          
+          // URL 해시 제거 (보안)
+          history.replaceState(null, '', window.location.pathname);
+          
+          // 세션 수동 설정
+          if (accessToken && refreshToken) {
+            const { data, error } = await supabaseClient.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken
+            });
+            
+            if (error) {
+              console.error('세션 설정 실패:', error);
+              window.location.href = '/admin/login';
+            } else {
+              console.log('세션 설정 성공:', data.user?.email);
+              localStorage.setItem('admin_session_token', accessToken);
+              
+              // 데이터 로드
+              loadAdminInfo();
+              loadDashboardStats();
+              loadRecentActivities();
+            }
+            return; // 여기서 종료
+          }
+        }
+        
+        // 일반적인 세션 확인 (기존 세션 복원)
+        if (session) {
+          console.log('초기 세션 확인:', session.user.email);
+          localStorage.setItem('admin_session_token', session.access_token);
+          loadAdminInfo();
+          loadDashboardStats();
+          loadRecentActivities();
+        } else {
+          console.log('초기 세션 없음 - 로그인 페이지로 이동');
+          window.location.href = '/admin/login';
+        }
+      } else if (event === 'SIGNED_IN' && session) {
+        console.log('로그인 감지:', session.user.email);
+        localStorage.setItem('admin_session_token', session.access_token);
+        // OAuth 콜백으로 로그인된 경우 데이터 로드
+        loadAdminInfo();
+        loadDashboardStats();
+        loadRecentActivities();
+      } else if (event === 'SIGNED_OUT') {
+        console.log('로그아웃 감지');
+        localStorage.removeItem('admin_session_token');
+        window.location.href = '/admin/login';
+      }
+    });
     
     // 로그아웃 버튼 이벤트 리스너
     window.addEventListener('load', function() {
@@ -1410,14 +1482,6 @@
         console.error('로그아웃 버튼을 찾을 수 없음');
       }
     });
-    
-    // 인증 체크 및 데이터 로드 - 즉시 실행
-    console.log('checkAuth 호출');
-    checkAuth();
-    console.log('loadDashboardStats 호출');
-    loadDashboardStats();
-    console.log('loadRecentActivities 호출');
-    loadRecentActivities();
 
     // ==================== 구독 현황 페이지 ====================
     async function loadSubscriptionsPage() {
@@ -1511,7 +1575,7 @@
                   '<th>시작일</th>' +
                   '<th>종료일</th>' +
                   '<th>다음 결제일</th>' +
-                  '<th>금액</th>' +
+                  '<th>결제금액</th>' +
                 '</tr>' +
               '</thead>' +
               '<tbody id="subscriptionTableBody">' +
@@ -1638,7 +1702,7 @@
           '<td>' + (sub.current_period_start ? new Date(sub.current_period_start).toLocaleDateString('ko-KR') : '-') + '</td>' +
           '<td>' + (sub.current_period_end ? new Date(sub.current_period_end).toLocaleDateString('ko-KR') : '-') + '</td>' +
           '<td>' + nextBillingText + '</td>' +
-          '<td>' + (sub.monthly_price ? sub.monthly_price.toLocaleString() + '원' : '-') + '</td>' +
+          '<td>' + (sub.payment_amount ? sub.payment_amount.toLocaleString() + '원' : '0원') + '</td>' +
         '</tr>';
       }).join('');
       
@@ -5419,7 +5483,6 @@
       await assignPromotionLoadReservations();
     }
   
-    loadRecentActivities();
   </script>
 </body>
 </html>

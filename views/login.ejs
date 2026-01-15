@@ -302,8 +302,10 @@
     window.addEventListener('load', async function() {
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (session) {
-        // 이미 로그인되어 있으면 pharmchecker로 리다이렉트
-        window.location.href = '/pharmchecker';
+        // 이미 로그인되어 있으면 원래 요청한 페이지 또는 pharmchecker로 리다이렉트
+        const urlParams = new URLSearchParams(window.location.search);
+        const returnTo = urlParams.get('returnTo') || '/pharmchecker';
+        window.location.href = returnTo;
       }
     });
 
@@ -312,10 +314,14 @@
       document.getElementById('loading').style.display = 'block';
       
       try {
+        // returnTo 파라미터 가져오기
+        const urlParams = new URLSearchParams(window.location.search);
+        const returnTo = urlParams.get('returnTo') || '/pharmchecker';
+        
         const { data, error } = await supabaseClient.auth.signInWithOAuth({
           provider: 'google',
           options: {
-            redirectTo: `${window.location.origin}/pharmchecker`
+            redirectTo: `${window.location.origin}${returnTo}`
           }
         });
         

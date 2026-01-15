@@ -1,0 +1,16 @@
+schemaname,tablename,policyname,permissive,roles,cmd,qual,with_check
+storage,objects,Admin full access to support attachments,PERMISSIVE,{public},ALL,"((bucket_id = 'support-attachments'::text) AND (EXISTS ( SELECT 1
+   FROM admins
+  WHERE ((admins.admin_id = auth.uid()) AND (admins.is_active = true)))))","((bucket_id = 'support-attachments'::text) AND (EXISTS ( SELECT 1
+   FROM admins
+  WHERE ((admins.admin_id = auth.uid()) AND (admins.is_active = true)))))"
+storage,objects,Deny direct read on support-attachments,PERMISSIVE,{public},SELECT,(bucket_id <> 'support-attachments'::text),null
+storage,objects,User can upload own ticket attachments,PERMISSIVE,{public},INSERT,null,"((bucket_id = 'support-attachments'::text) AND ((storage.foldername(name))[1] IN ( SELECT (support_tickets.ticket_id)::text AS ticket_id
+   FROM support_tickets
+  WHERE (support_tickets.user_id = auth.uid()))))"
+storage,objects,User can view own ticket attachments,PERMISSIVE,{public},SELECT,"((bucket_id = 'support-attachments'::text) AND ((storage.foldername(name))[1] IN ( SELECT (support_tickets.ticket_id)::text AS ticket_id
+   FROM support_tickets
+  WHERE (support_tickets.user_id = auth.uid()))))",null
+storage,objects,pharmchecker_releases_access,PERMISSIVE,{authenticated},SELECT,"((bucket_id = 'releases'::text) AND (name ~~ 'pharmchecker/%'::text) AND (EXISTS ( SELECT 1
+   FROM user_subscriptions us
+  WHERE ((us.user_id = auth.uid()) AND (((us.status = 'active'::text) AND (us.current_period_end > now())) OR ((us.status = 'failed'::text) AND (us.grace_until > now())))))))",null

@@ -675,7 +675,7 @@
             <div class="nav-dropdown-arrow"></div>
           </div>
           <div class="nav-dropdown-menu" id="navDropdownMenu">
-            <a href="/support/new" class="nav-dropdown-item">
+            <a href="/support/tickets" class="nav-dropdown-item">
               <span class="nav-dropdown-item-icon">✍️</span>
               <span class="nav-dropdown-item-text">문의하기</span>
             </a>
@@ -861,6 +861,18 @@
     let currentUser = null;
     let accessToken = null;
 
+    // 세션 만료 감지 리스너 설정
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        console.log('세션이 만료되었습니다. 로그인 페이지로 이동합니다.');
+        alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+        window.location.href = '/login';
+      } else if (event === 'TOKEN_REFRESHED' && session) {
+        console.log('토큰이 갱신되었습니다.');
+        accessToken = session.access_token;
+      }
+    });
+
     // 페이지 로드 시 사용자 정보 표시
     window.addEventListener('DOMContentLoaded', async function() {
       const { data: { session } } = await supabaseClient.auth.getSession();
@@ -1014,11 +1026,22 @@
     
     // 구독 플랜 선택 페이지로 이동 (구독 중이면 내 구독 정보로 이동)
     async function goToSubscriptionPlans() {
-      if (!currentUser) {
+      console.log('구독 플랜 버튼 클릭 - currentUser:', currentUser);
+      console.log('구독 플랜 버튼 클릭 - accessToken:', accessToken ? '있음' : '없음');
+      
+      // 세션 재확인
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      
+      if (!session) {
+        console.log('세션 없음 - 로그인 페이지로 이동');
         alert('로그인이 필요합니다.');
         window.location.href = '/login';
         return;
       }
+      
+      console.log('세션 확인됨 - 구독 상태 확인');
+      currentUser = session.user;
+      accessToken = session.access_token;
       
       try {
         const response = await fetch(`/api/subscription/my`, {
@@ -1028,15 +1051,19 @@
         });
         const data = await response.json();
         
+        console.log('구독 정보 응답:', data);
+        
         if (data.success) {
           // 이미 구독 중
           alert('이미 구독 중입니다. 내 구독 정보 페이지로 이동합니다.');
           window.location.href = '/my-subscription';
         } else {
           // 구독 없음 - 플랜 선택 페이지로
+          console.log('구독 없음 - 플랜 선택 페이지로 이동');
           window.location.href = '/subscription/plans';
         }
       } catch (error) {
+        console.log('구독 정보 조회 오류:', error);
         // 구독 없음 (404 등)
         window.location.href = '/subscription/plans';
       }

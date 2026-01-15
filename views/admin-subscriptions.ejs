@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>구독 현황 - PharmChecker Admin</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      background-color: #f5f5f5;
+    }
+    .navbar {
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .main-content {
+      padding: 2rem 1.5rem;
+    }
+  </style>
+</head>
+<body>
+  <%- include('_header-common.txt') %>
+
+  <div class="main-content">
+    <div class="container is-fluid">
+      <div class="level">
+        <div class="level-left">
+          <div class="level-item">
+            <h1 class="title">구독 현황</h1>
+          </div>
+        </div>
+        <div class="level-right">
+          <div class="level-item">
+            <a href="/admin" class="button is-light">
+              <i class="fas fa-arrow-left"></i>&nbsp; 대시보드
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- 검색 필터 -->
+      <div class="box">
+        <div class="columns is-multiline">
+          <div class="column is-2">
+            <div class="field">
+              <label class="label">약국명</label>
+              <div class="control">
+                <input class="input" type="text" id="pharmacyNameSearch" placeholder="약국명">
+              </div>
+            </div>
+          </div>
+          <div class="column is-2">
+            <div class="field">
+              <label class="label">약사명</label>
+              <div class="control">
+                <input class="input" type="text" id="pharmacistNameSearch" placeholder="약사명">
+              </div>
+            </div>
+          </div>
+          <div class="column is-2">
+            <div class="field">
+              <label class="label">시작일</label>
+              <div class="control">
+                <input class="input" type="date" id="startDateSearch">
+              </div>
+            </div>
+          </div>
+          <div class="column is-2">
+            <div class="field">
+              <label class="label">종료일</label>
+              <div class="control">
+                <input class="input" type="date" id="endDateSearch">
+              </div>
+            </div>
+          </div>
+          <div class="column is-2">
+            <div class="field">
+              <label class="label">구독 상태</label>
+              <div class="control">
+                <div class="select is-fullwidth">
+                  <select id="statusFilter">
+                    <option value="">전체</option>
+                    <option value="active">활성</option>
+                    <option value="cancelled">취소됨</option>
+                    <option value="paused">일시정지</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="column is-1">
+            <div class="field">
+              <label class="label">&nbsp;</label>
+              <div class="control">
+                <button class="button is-primary is-fullwidth" id="searchBtn">
+                  <i class="fas fa-search"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="column is-1">
+            <div class="field">
+              <label class="label">&nbsp;</label>
+              <div class="control">
+                <button class="button is-light is-fullwidth" id="resetBtn">
+                  <i class="fas fa-redo"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 구독 목록 -->
+      <div class="box">
+        <div class="table-container">
+          <table class="table is-fullwidth is-striped is-hoverable">
+            <thead>
+              <tr>
+                <th style="width: 60px;">No.</th>
+                <th>약국명</th>
+                <th>약사명</th>
+                <th>이메일</th>
+                <th>플랜</th>
+                <th>상태</th>
+                <th>첫 결제일</th>
+                <th>시작일</th>
+                <th>종료일</th>
+                <th>다음 결제일</th>
+                <th>금액</th>
+              </tr>
+            </thead>
+            <tbody id="subscriptionList">
+              <tr>
+                <td colspan="11" class="has-text-centered">
+                  <i class="fas fa-spinner fa-pulse"></i> 로딩 중...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 페이지네이션 -->
+        <nav class="pagination is-centered" role="navigation" id="pagination">
+        </nav>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/admin-subscriptions.js"></script>
+</body>
+</html>

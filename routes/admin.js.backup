@@ -4,37 +4,6 @@ const { supabaseAdmin } = require('../config/supabase');
 const supabase = require('../config/supabase');
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
-const { getUserEmail, getUserEmailsBatch, getAdminEmail } = require('../utils/admin-email-helper');
-const multer = require('multer');
-const path = require('path');
-
-// Multer 설정 (메모리 스토리지 사용 - 관리자 답변 파일 업로드용)
-const storage = multer.memoryStorage();
-const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB
-    files: 5 // 최대 5개
-  },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = [
-      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'text/plain',
-      'application/zip'
-    ];
-
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('허용되지 않는 파일 형식입니다.'));
-    }
-  }
-});
 
 // ===== 관리자 인증 미들웨어 (Supabase Auth 기반) =====
 async function requireAdmin(req, res, next) {
@@ -48,27 +17,8 @@ async function requireAdmin(req, res, next) {
   const token = authHeader.substring(7);
   
   try {
-    // 커스텀 세션 토큰 파싱 (v1.{base64}.sig 형식)
-    let actualToken = token;
-    
-    console.log('[requireAdmin] 받은 토큰 형식:', token.substring(0, 50) + '...');
-    
-    if (token.startsWith('v1.') && token.endsWith('.sig')) {
-      try {
-        const base64Part = token.slice(3, -4); // 'v1.' 제거하고 '.sig' 제거
-        const decoded = JSON.parse(Buffer.from(base64Part, 'base64').toString('utf8'));
-        actualToken = decoded.idToken;
-        console.log('[requireAdmin] 커스텀 토큰 디코딩 성공, idToken 추출됨');
-      } catch (decodeError) {
-        console.error('[requireAdmin] 커스텀 토큰 디코딩 실패:', decodeError.message);
-        return res.status(401).json({ error: '잘못된 토큰 형식' });
-      }
-    } else {
-      console.log('[requireAdmin] 일반 JWT 토큰으로 처리');
-    }
-    
     // Supabase에서 토큰 검증
-    const { data: { user }, error } = await supabase.auth.getUser(actualToken);
+    const { data: { user }, error } = await supabase.auth.getUser(token);
     
     if (error || !user) {
       console.error('[requireAdmin] 토큰 검증 실패:', error);
@@ -84,7 +34,7 @@ async function requireAdmin(req, res, next) {
       {
         global: {
           headers: {
-            Authorization: `Bearer ${actualToken}`
+            Authorization: `Bearer ${token}`
           }
         }
       }
@@ -106,7 +56,7 @@ async function requireAdmin(req, res, next) {
     console.log('[requireAdmin] 인증 성공:', admin.admin_id, admin.role);
     req.admin = admin;
     req.user = user;
-    req.accessToken = actualToken;
+    req.accessToken = token;
     next();
   } catch (error) {
     console.error('[requireAdmin] 인증 오류:', error);
@@ -117,11 +67,92 @@ async function requireAdmin(req, res, next) {
 // ===== 페이지 렌더링 =====
 
 // 관리자 메인 페이지 (/admin)
-// OAuth 콜백 URL로 사용 (리다이렉트 없이 직접 렌더링)
 router.get('/', async (req, res) => {
-  // OAuth 콜백이 /admin#access_token=... 형식으로 올 수 있으므로
-  // 리다이렉트 없이 대시보드를 직접 렌더링 (URL 해시 유지)
-  res.render('admin-dashboard');
+  // 서버에서 직접 토큰 검증 후 페이지 렌더링
+  const token = req.cookies?.admin_session_token || null;
+  
+  if (!token) {
+    // 토큰이 없으면 로그인 페이지 렌더링
+    return res.render('admin-login');
+  }
+  
+  try {
+    // 커스텀 세션 토큰 파싱
+    // 형식: v1.BASE64_PAYLOAD.sig
+    const firstDotIndex = token.indexOf('.');
+    const lastDotIndex = token.lastIndexOf('.');
+    
+    if (firstDotIndex === -1 || lastDotIndex === -1 || firstDotIndex === lastDotIndex) {
+      res.clearCookie('admin_session_token', { path: '/' });
+      res.clearCookie('admin_session_token', { path: '/admin' });
+      return res.render('admin-login');
+    }
+    
+    const version = token.substring(0, firstDotIndex);
+    const payload = token.substring(firstDotIndex + 1, lastDotIndex);
+    
+    if (version !== 'v1') {
+      res.clearCookie('admin_session_token', { path: '/' });
+      res.clearCookie('admin_session_token', { path: '/admin' });
+      return res.render('admin-login');
+    }
+    
+    const tokenData = JSON.parse(Buffer.from(payload, 'base64').toString());
+    
+    // 서버 인스턴스 ID 확인 (서버 재시작 시 이전 토큰 무효화)
+    if (tokenData.instanceId !== SERVER_INSTANCE_ID) {
+      console.log('[Admin] 세션 무효: 서버가 재시작되었습니다.');
+      res.clearCookie('admin_session_token', { path: '/' });
+      res.clearCookie('admin_session_token', { path: '/admin' });
+      return res.render('admin-login');
+    }
+    
+    const email = tokenData.email;
+    const idToken = tokenData.idToken;
+    
+    if (!email || !idToken) {
+      // 유효하지 않은 토큰 - 쿠키 삭제
+      res.clearCookie('admin_session_token', { path: '/' });
+      res.clearCookie('admin_session_token', { path: '/admin' });
+      return res.render('admin-login');
+    }
+    
+    // 사용자 존재 여부 확인
+    const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
+    const authUser = users?.find(u => u.email === email);
+    
+    if (!authUser) {
+      // 사용자 없음 - 쿠키 삭제
+      res.clearCookie('admin_session_token', { path: '/' });
+      res.clearCookie('admin_session_token', { path: '/admin' });
+      return res.render('admin-login');
+    }
+    
+    // 관리자 권한 확인
+    const { data: admin, error: adminError } = await supabase
+      .from('admins')
+      .select('*')
+      .eq('admin_id', authUser.id)
+      .eq('is_active', true)
+      .single();
+    
+    if (adminError || !admin) {
+      // 관리자 권한 없음 - 쿠키 삭제
+      res.clearCookie('admin_session_token', { path: '/' });
+      res.clearCookie('admin_session_token', { path: '/admin' });
+      return res.render('admin-login');
+    }
+    
+    // 인증 성공 - 대시보드 렌더링
+    return res.render('admin-dashboard', { adminName: email });
+    
+  } catch (error) {
+    console.error('관리자 인증 오류:', error);
+    // 토큰 파싱 실패 등 - 쿠키 삭제
+    res.clearCookie('admin_session_token', { path: '/' });
+    res.clearCookie('admin_session_token', { path: '/admin' });
+    return res.render('admin-login');
+  }
 });
 
 // 로그인 페이지
@@ -129,41 +160,63 @@ router.get('/login', (req, res) => {
   res.render('admin-login');
 });
 
-// 대시보드 페이지 - Supabase 세션 필요
+// 대시보드 페이지
 router.get('/dashboard', async (req, res) => {
-  // 페이지는 렌더링하되, 클라이언트에서 Supabase 세션 확인
-  // 세션 없으면 자동으로 /admin/login으로 리다이렉트
+  // 쿠키 체크는 선택사항 - 없어도 페이지 렌더링
+  // 클라이언트에서 Supabase 세션으로 인증
   res.render('admin-dashboard');
 });
 
-// 회원 관리 페이지 (현재 사용 안 함 - 대시보드 내부에서 처리)
-router.get('/users', async (req, res) => {
-  res.render('admin-users');
-});
-
-// 모바일 조회 페이지 (현재 사용 안 함 - 대시보드 내부에서 처리)
-router.get('/mobile', (req, res) => {
-  res.render('admin-mobile');
-});
-
-// 구독 현황 페이지 (현재 사용 안 함 - 대시보드 내부에서 처리)
-router.get('/subscriptions', (req, res) => {
-  res.render('admin-subscriptions');
-});
-
-// 결제 내역 페이지 (현재 사용 안 함 - 대시보드 내부에서 처리)
-router.get('/payments', (req, res) => {
-  res.render('admin-payments');
-});
-
-// 문의 내역 페이지 (현재 사용 안 함 - 대시보드 내부에서 처리)
-router.get('/support-tickets', (req, res) => {
-  res.render('admin-support-tickets');
-});
-
-// 원격 지원 관리 페이지 (현재 사용 안 함 - 대시보드 내부에서 처리)
-router.get('/remote-support', (req, res) => {
-  res.render('admin-remote-support');
+// 모바일 조회 페이지
+router.get('/mobile', async (req, res) => {
+  const token = req.cookies?.admin_session_token || null;
+  
+  if (!token) {
+    return res.render('admin-login');
+  }
+  
+  try {
+    const firstDotIndex = token.indexOf('.');
+    const lastDotIndex = token.lastIndexOf('.');
+    
+    if (firstDotIndex === -1 || lastDotIndex === -1 || firstDotIndex === lastDotIndex) {
+      res.clearCookie('admin_session_token', { path: '/' });
+      res.clearCookie('admin_session_token', { path: '/admin' });
+      return res.render('admin-login');
+    }
+    
+    const version = token.substring(0, firstDotIndex);
+    const payload = token.substring(firstDotIndex + 1, lastDotIndex);
+    
+    if (version !== 'v1') {
+      res.clearCookie('admin_session_token', { path: '/' });
+      res.clearCookie('admin_session_token', { path: '/admin' });
+      return res.render('admin-login');
+    }
+    
+    const tokenData = JSON.parse(Buffer.from(payload, 'base64').toString());
+    
+    if (tokenData.instanceId !== SERVER_INSTANCE_ID) {
+      res.clearCookie('admin_session_token', { path: '/' });
+      res.clearCookie('admin_session_token', { path: '/admin' });
+      return res.render('admin-login');
+    }
+    
+    const email = tokenData.email;
+    
+    if (!email) {
+      res.clearCookie('admin_session_token', { path: '/' });
+      res.clearCookie('admin_session_token', { path: '/admin' });
+      return res.render('admin-login');
+    }
+    
+    return res.render('admin-mobile', { adminName: email });
+  } catch (error) {
+    console.error('모바일 페이지 인증 오류:', error);
+    res.clearCookie('admin_session_token', { path: '/' });
+    res.clearCookie('admin_session_token', { path: '/admin' });
+    return res.render('admin-login');
+  }
 });
 
 // ===== API 엔드포인트 =====
@@ -259,15 +312,14 @@ router.get('/api/mobile/users', requireAdmin, async (req, res) => {
   try {
     const {
       pharmacy_name = '',
-      name = '',
-      limit = '100'
+      name = ''
     } = req.query;
 
-    // users 테이블에서 검색 (RLS 적용)
-    let query = req.supabase
+    // users 테이블에서 검색 (탈퇴 회원 포함)
+    let query = supabase
       .from('users')
       .select('user_id, pharmacy_name, address, detail_address, postcode, pharmacist_name, pharmacist_phone, is_deleted')
-      .limit(parseInt(limit));
+      .limit(100);
 
     // 약국명 검색 (선택사항)
     if (pharmacy_name) {
@@ -284,39 +336,34 @@ router.get('/api/mobile/users', requireAdmin, async (req, res) => {
     const { data: users, error } = await query;
 
     if (error) {
-      console.error('[모바일 회원 조회 오류]', error);
+      console.error('모바일 회원 조회 오류:', error);
       return res.status(500).json({ error: '서버 오류' });
     }
-
-    console.log(`[모바일 회원 조회] 검색 결과: ${users?.length || 0}명`);
 
     // 각 회원의 최근 메모 3개 및 구독 정보 조회
     const usersWithDetails = await Promise.all(
       (users || []).map(async (user) => {
-        // 최근 메모 조회 (RLS 적용)
-        const { data: memos } = await req.supabase
+        // 최근 메모 조회
+        const { data: memos } = await supabase
           .from('admin_user_memos')
           .select('memo, created_at, admin_id')
           .eq('user_id', user.user_id)
           .order('created_at', { ascending: false })
           .limit(3);
 
-        // admin_id로 이메일 조회 (admins 테이블에서)
-        const adminIds = [...new Set((memos || []).map(m => m.admin_id))];
-        const { data: adminEmails } = await req.supabase
-          .from('admins')
-          .select('admin_id, email')
-          .in('admin_id', adminIds);
-        
-        const adminEmailMap = new Map((adminEmails || []).map(a => [a.admin_id, a.email]));
-        
-        const memosWithEmail = (memos || []).map(memo => ({
-          ...memo,
-          admin_email: adminEmailMap.get(memo.admin_id) || '알 수 없음'
-        }));
+        // admin_id로 이메일 조회
+        const memosWithEmail = await Promise.all(
+          (memos || []).map(async (memo) => {
+            const { data: { user: adminUser } } = await supabase.auth.admin.getUserById(memo.admin_id);
+            return {
+              ...memo,
+              admin_email: adminUser?.email || '알 수 없음'
+            };
+          })
+        );
 
-        // 구독 정보 조회 (RLS 적용)
-        const { data: subscription } = await req.supabase
+        // 구독 정보 조회
+        const { data: subscription } = await supabase
           .from('user_subscriptions')
           .select(`
             subscription_id,
@@ -342,9 +389,9 @@ router.get('/api/mobile/users', requireAdmin, async (req, res) => {
         let billingPlan = null;
 
         if (subscription) {
-          // entry_plan 조회 (RLS 적용)
+          // entry_plan 조회
           if (subscription.entry_plan_id) {
-            const { data } = await req.supabase
+            const { data } = await supabase
               .from('subscription_plans')
               .select('plan_id, plan_code, plan_name, monthly_price')
               .eq('plan_id', subscription.entry_plan_id)
@@ -352,9 +399,9 @@ router.get('/api/mobile/users', requireAdmin, async (req, res) => {
             entryPlan = data;
           }
 
-          // billing_plan 조회 (RLS 적용)
+          // billing_plan 조회
           if (subscription.billing_plan_id) {
-            const { data } = await req.supabase
+            const { data } = await supabase
               .from('subscription_plans')
               .select('plan_id, plan_code, plan_name, monthly_price')
               .eq('plan_id', subscription.billing_plan_id)
@@ -375,7 +422,7 @@ router.get('/api/mobile/users', requireAdmin, async (req, res) => {
 
     res.json({ users: usersWithDetails });
   } catch (error) {
-    console.error('[모바일 회원 조회 오류]', error);
+    console.error('모바일 회원 조회 오류:', error);
     res.status(500).json({ error: '서버 오류' });
   }
 });
@@ -455,8 +502,8 @@ router.post('/api/users/:userId/memos', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: '메모 또는 비고를 입력해주세요' });
     }
     
-    // 항상 새로운 메모 생성 (이력 관리) - RLS 적용
-    const { data, error } = await req.supabase
+    // 항상 새로운 메모 생성 (이력 관리)
+    const { data, error } = await supabase
       .from('admin_user_memos')
       .insert({
         user_id: userId,
@@ -467,19 +514,22 @@ router.post('/api/users/:userId/memos', requireAdmin, async (req, res) => {
       .select()
       .single();
     
-    if (error) {
-      console.error('[메모 저장 오류]', error);
-      throw error;
-    }
+    if (error) throw error;
     
     console.log('[메모 저장 성공]', { userId, admin_id: req.admin.admin_id, memo_id: data.memo_id });
     
-    // 활동 로그 기록 (RLS 적용)
-    await req.supabase.from('admin_activity_logs').insert({
+    // 활동 로그 기록
+    await supabase.from('admin_activity_logs').insert({
       admin_id: req.admin.admin_id,
-      action: 'create_user_memo',
+      action_type: 'create_user_memo',
       target_type: 'user',
-      target_id: userId
+      target_id: userId,
+      details: { 
+        remarks: remarks || '',
+        memo: memo || '',
+        has_memo: !!memo,
+        has_remarks: !!remarks
+      }
     });
     
     res.json({ success: true, memo: data });
@@ -510,26 +560,18 @@ router.get('/api/users', requireAdmin, async (req, res) => {
     // 1단계: 이메일 검색이 있으면 auth.users에서 먼저 필터링
     let emailMatchedUserIds = null;
     if (email) {
-      const { data: { users: authUsers }, error: authError } = await supabaseAdmin.auth.admin.listUsers();
+      const { data: { users: authUsers } } = await supabase.auth.admin.listUsers();
+      emailMatchedUserIds = authUsers
+        .filter(u => u.email?.toLowerCase().includes(email.toLowerCase()))
+        .map(u => u.id);
       
-      if (authError) {
-        console.error('[이메일 검색 오류]', authError);
-      } else {
-        emailMatchedUserIds = authUsers
-          .filter(u => u.email?.toLowerCase().includes(email.toLowerCase()))
-          .map(u => u.id);
-        
-        console.log(`[이메일 검색] 검색어: "${email}", 매칭된 사용자: ${emailMatchedUserIds.length}명`);
-        
-        if (emailMatchedUserIds.length === 0) {
-          return res.json({ users: [], total: 0, page: parseInt(page), limit: parseInt(limit), totalPages: 0 });
-        }
+      if (emailMatchedUserIds.length === 0) {
+        return res.json({ users: [], total: 0, page: parseInt(page), limit: parseInt(limit), totalPages: 0 });
       }
     }
     
     // 2단계: users 테이블에서 조건에 맞는 회원 조회
-    // RLS 정책 적용을 위해 인증된 supabase 클라이언트 사용
-    let query = req.supabase
+    let query = supabase
       .from('users')
       .select(`
         user_id,
@@ -575,15 +617,13 @@ router.get('/api/users', requireAdmin, async (req, res) => {
     }
     
     // 3단계: 각 회원의 상세 정보 조회
-    // 이메일은 통제된 헬퍼 함수로 일괄 조회 (감사 로그 기록)
-    const userIds = (users || []).map(u => u.user_id);
-    const emailMap = await getUserEmailsBatch(userIds, req.admin.admin_id, '회원 목록 조회');
-    
     const usersWithDetails = await Promise.all(
       (users || []).map(async (user) => {
+        // 이메일 조회
+        const { data: { user: authUser } } = await supabase.auth.admin.getUserById(user.user_id);
         
-        // 활성 구독 조회 (RLS 적용)
-        const { data: subscriptions } = await req.supabase
+        // 활성 구독 조회
+        const { data: subscriptions } = await supabase
           .from('user_subscriptions')
           .select(`
             subscription_id,
@@ -604,10 +644,10 @@ router.get('/api/users', requireAdmin, async (req, res) => {
         
         const subscription = subscriptions?.[0];
         
-        // 구독이 있으면 플랜 정보 조회 (RLS 적용)
+        // 구독이 있으면 플랜 정보 조회
         let billingPlan = null;
         if (subscription?.billing_plan_id) {
-          const { data } = await req.supabase
+          const { data } = await supabase
             .from('subscription_plans')
             .select('plan_id, plan_code, plan_name, monthly_price')
             .eq('plan_id', subscription.billing_plan_id)
@@ -615,8 +655,8 @@ router.get('/api/users', requireAdmin, async (req, res) => {
           billingPlan = data;
         }
         
-        // 마지막 결제 정보 조회 (RLS 적용)
-        const { data: lastPayment } = await req.supabase
+        // 마지막 결제 정보 조회
+        const { data: lastPayment } = await supabase
           .from('billing_payments')
           .select('payment_date, amount, status')
           .eq('user_id', user.user_id)
@@ -625,8 +665,8 @@ router.get('/api/users', requireAdmin, async (req, res) => {
           .limit(1)
           .single();
         
-        // 적용된 프로모션 조회 (RLS 적용)
-        const { data: promotions } = await req.supabase
+        // 적용된 프로모션 조회
+        const { data: promotions } = await supabase
           .from('subscription_promotions')
           .select(`
             promotion_id,
@@ -640,8 +680,8 @@ router.get('/api/users', requireAdmin, async (req, res) => {
           .eq('is_active', true)
           .order('created_at', { ascending: false });
         
-        // 최근 관리자 메모/비고 조회 (가장 최근 업데이트된 것 1개) (RLS 적용)
-        const { data: memos } = await req.supabase
+        // 최근 관리자 메모/비고 조회 (가장 최근 업데이트된 것 1개)
+        const { data: memos } = await supabase
           .from('admin_user_memos')
           .select('remarks, memo, created_at, updated_at')
           .eq('user_id', user.user_id)
@@ -652,7 +692,7 @@ router.get('/api/users', requireAdmin, async (req, res) => {
         
         return {
           ...user,
-          email: emailMap.get(user.user_id) || 'N/A', // 통제된 헬퍼로 조회한 이메일
+          email: authUser?.email || 'N/A',
           subscription: subscription ? {
             status: subscription.status,
             plan_name: billingPlan?.plan_name || 'N/A',
@@ -746,8 +786,8 @@ router.get('/api/users/:userId', requireAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
     
-    // 1. 기본 회원 정보 (RLS 적용)
-    const { data: user, error: userError } = await req.supabase
+    // 1. 기본 회원 정보
+    const { data: user, error: userError } = await supabase
       .from('users')
       .select('*')
       .eq('user_id', userId)
@@ -757,11 +797,11 @@ router.get('/api/users/:userId', requireAdmin, async (req, res) => {
       return res.status(404).json({ error: '회원을 찾을 수 없습니다' });
     }
     
-    // 2. 이메일 조회 (통제된 헬퍼 사용, 감사 로그 기록)
-    const email = await getUserEmail(userId, req.admin.admin_id, '회원 상세 정보 조회');
+    // 2. auth.users에서 이메일 조회
+    const { data: { user: authUser } } = await supabase.auth.admin.getUserById(userId);
     
-    // 3. 구독 내역 (전체) (RLS 적용)
-    const { data: subscriptions, error: subscriptionsError } = await req.supabase
+    // 3. 구독 내역 (전체)
+    const { data: subscriptions } = await supabase
       .from('user_subscriptions')
       .select(`
         subscription_id,
@@ -774,176 +814,101 @@ router.get('/api/users/:userId', requireAdmin, async (req, res) => {
         billing_plan_id,
         subscription_plans!user_subscriptions_billing_plan_id_fkey (
           plan_name,
-          monthly_price
+          billing_period,
+          price
         )
       `)
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
     
-    console.log(`[구독 내역] userId: ${userId}, 구독 개수: ${subscriptions?.length || 0}`);
-    if (subscriptionsError) console.error('[구독 내역 오류]', subscriptionsError);
-    
-    // 4. 결제 내역 (전체) (RLS 적용)
-    const { data: paymentsRaw, error: paymentsError } = await req.supabase
+    // 4. 결제 내역 (전체)
+    const { data: payments } = await supabase
       .from('billing_payments')
       .select(`
         payment_id,
-        order_id,
-        payment_key,
+        payment_date,
         amount,
         status,
-        fail_reason,
-        requested_at,
-        approved_at,
-        created_at,
-        promotion_id,
-        payment_methods!billing_payments_payment_method_id_fkey (
-          card_company,
-          card_last4
-        )
+        payment_method,
+        toss_payment_key,
+        toss_order_id,
+        failure_code,
+        failure_message,
+        created_at
       `)
       .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+      .order('payment_date', { ascending: false });
     
-    console.log(`[결제 내역] userId: ${userId}, 결제 개수: ${paymentsRaw?.length || 0}`);
-    if (paymentsError) console.error('[결제 내역 오류]', paymentsError);
-    
-    // 프론트엔드 호환성을 위한 필드명 변환
-    const payments = (paymentsRaw || []).map(p => ({
-      payment_id: p.payment_id,
-      payment_date: p.approved_at || p.requested_at, // 결제일 = 승인일 또는 요청일
-      amount: p.amount,
-      status: p.status,
-      payment_method: p.payment_methods ? `${p.payment_methods.card_company} (${p.payment_methods.card_last4})` : '알 수 없음', // 결제수단
-      toss_order_id: p.order_id, // 주문번호
-      toss_payment_key: p.payment_key,
-      failure_message: p.fail_reason, // 실패사유
-      created_at: p.created_at
-    }));
-    
-    // 5. 사용자 프로모션 내역 (RLS 적용)
-    const { data: userPromotionsRaw, error: promotionsError } = await req.supabase
-      .from('pending_user_promotions')
+    // 5. 프로모션 내역 (전체)
+    const { data: promotions } = await supabase
+      .from('subscription_promotions')
       .select(`
-        pending_id,
         promotion_id,
-        created_at,
-        applied_at,
-        payment_id,
-        status,
-        subscription_promotions!pending_user_promotions_promotion_id_fkey (
-          promotion_code,
-          promotion_name,
-          discount_type,
-          discount_value,
-          free_months,
-          start_at,
-          end_at
-        )
+        promotion_type,
+        discount_rate,
+        free_months,
+        start_date,
+        expires_at,
+        is_active,
+        created_at
       `)
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
     
-    console.log(`[프로모션 내역] userId: ${userId}, 프로모션 개수: ${userPromotionsRaw?.length || 0}`);
-    if (promotionsError) console.error('[프로모션 내역 오류]', promotionsError);
-    
-    // 프론트엔드 호환성을 위한 필드명 변환
-    const promotions = (userPromotionsRaw || []).map(p => ({
-      promotion_id: p.promotion_id,
-      promotion_type: p.subscription_promotions?.discount_type || 'unknown', // discount_type -> promotion_type
-      discount_rate: p.subscription_promotions?.discount_type === 'percent' ? p.subscription_promotions?.discount_value : null,
-      free_months: p.subscription_promotions?.free_months,
-      start_date: p.subscription_promotions?.start_at || p.created_at,
-      expires_at: p.subscription_promotions?.end_at,
-      is_active: p.status === 'applied' || p.status === 'selected',
-      promotion_name: p.subscription_promotions?.promotion_name,
-      used_at: p.applied_at
-    }));
-    
-    // 6. 관리자 메모/비고 내역 (전체) (RLS 적용)
-    // admins.email은 테이블에 있으므로 조인으로 직접 조회
-    const { data: memos, error: memosError } = await req.supabase
+    // 6. 관리자 메모/비고 내역 (전체)
+    const { data: memosRaw, error: memosError } = await supabase
       .from('admin_user_memos')
-      .select(`
-        memo_id, 
-        memo, 
-        remarks, 
-        created_at, 
-        updated_at, 
-        admin_id
-      `)
+      .select('memo_id, memo, remarks, created_at, updated_at, admin_id')
       .eq('user_id', userId)
       .order('updated_at', { ascending: false });
     
-    console.log(`[메모 조회] userId: ${userId}, 메모 개수: ${memos?.length || 0}`);
+    console.log(`[메모 조회] userId: ${userId}, 메모 개수: ${memosRaw?.length || 0}`);
     if (memosError) console.error('[메모 조회 오류]', memosError);
     
-    // 메모 작성자 이메일 조회 (admins 테이블에서)
-    const adminIds = [...new Set((memos || []).map(m => m.admin_id))];
-    const { data: adminEmails } = await req.supabase
-      .from('admins')
-      .select('admin_id, email')
-      .in('admin_id', adminIds);
-    
-    const adminEmailMap = new Map((adminEmails || []).map(a => [a.admin_id, a.email]));
-    
-    // 메모 데이터 변환
-    const memosFormatted = (memos || []).map(memo => ({
-      memo_id: memo.memo_id,
-      memo: memo.memo,
-      remarks: memo.remarks,
-      created_at: memo.created_at,
-      updated_at: memo.updated_at,
-      admin_id: memo.admin_id,
-      admin_email: adminEmailMap.get(memo.admin_id) || '알 수 없음'
-    }));
+    // admin_id로 이메일 조회
+    const memos = await Promise.all(
+      (memosRaw || []).map(async (memo) => {
+        const { data: { user: adminUser } } = await supabase.auth.admin.getUserById(memo.admin_id);
+        return {
+          ...memo,
+          admin_email: adminUser?.email || '알 수 없음'
+        };
+      })
+    );
     
     if (memos && memos.length > 0) {
       console.log('[첫 번째 메모]', JSON.stringify(memos[0], null, 2));
     }
     
-    // 7. 관리자 활동 로그 (이 회원에 대한) (RLS 적용)
-    const { data: activityLogsRaw, error: logsError } = await req.supabase
+    // 7. 관리자 활동 로그 (이 회원에 대한)
+    const { data: activityLogs } = await supabase
       .from('admin_activity_logs')
       .select(`
         log_id,
-        action,
-        target_type,
-        target_id,
+        action_type,
+        details,
         created_at,
-        admin_id
+        admin_id,
+        admins (
+          email
+        )
       `)
       .eq('target_type', 'user')
       .eq('target_id', userId)
       .order('created_at', { ascending: false })
       .limit(50);
     
-    console.log(`[활동 로그] userId: ${userId}, 로그 개수: ${activityLogsRaw?.length || 0}`);
-    if (logsError) console.error('[활동 로그 오류]', logsError);
-    
-    // 활동 로그 작성자 이메일 조회
-    const logAdminIds = [...new Set((activityLogsRaw || []).map(l => l.admin_id))];
-    const { data: logAdminEmails } = await req.supabase
-      .from('admins')
-      .select('admin_id, email')
-      .in('admin_id', logAdminIds);
-    
-    const logAdminEmailMap = new Map((logAdminEmails || []).map(a => [a.admin_id, a.email]));
-    
-    const activityLogs = (activityLogsRaw || []).map(log => ({
-      ...log,
-      admin_email: logAdminEmailMap.get(log.admin_id) || '알 수 없음'
-    }));
-    
     res.json({
       user: {
         ...user,
-        email: email || 'N/A', // 통제된 헬퍼로 조회한 이메일
+        email: authUser?.email || 'N/A',
+        email_confirmed_at: authUser?.email_confirmed_at,
+        last_sign_in_at: authUser?.last_sign_in_at
       },
       subscriptions: subscriptions || [],
       payments: payments || [],
       promotions: promotions || [],
-      memos: memosFormatted || [],
+      memos: memos || [],
       activity_logs: activityLogs || []
     });
   } catch (error) {
@@ -955,63 +920,43 @@ router.get('/api/users/:userId', requireAdmin, async (req, res) => {
 // 대시보드 통계
 router.get('/api/dashboard/stats', requireAdmin, async (req, res) => {
   try {
-    // 전체 회원 수 (RLS 우회를 위해 supabaseAdmin 사용)
-    const { data: usersData, count: totalUsers, error: usersError } = await supabaseAdmin
+    // 전체 회원 수
+    const { count: totalUsers } = await supabase
       .from('users')
-      .select('user_id', { count: 'exact' })
+      .select('*', { count: 'exact', head: true })
       .eq('is_deleted', false);
     
-    if (usersError) {
-      console.error('회원 수 조회 에러:', usersError);
-    }
-    
     // 활성 구독 수
-    const { data: subsData, count: activeSubscriptions, error: subsError } = await supabaseAdmin
+    const { count: activeSubscriptions } = await supabase
       .from('user_subscriptions')
-      .select('subscription_id', { count: 'exact' })
+      .select('*', { count: 'exact', head: true })
       .eq('status', 'active');
-    
-    if (subsError) {
-      console.error('구독 수 조회 에러:', subsError);
-    }
     
     // 이번 달 매출
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
     
-    const { data: payments, error: paymentsError } = await supabaseAdmin
+    const { data: payments } = await supabase
       .from('billing_payments')
       .select('amount')
       .eq('status', 'success')
       .gte('approved_at', startOfMonth.toISOString());
     
-    if (paymentsError) {
-      console.error('결제 내역 조회 에러:', paymentsError);
-    }
-    
-    const monthlyRevenue = payments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
+    const monthlyRevenue = payments?.reduce((sum, p) => sum + p.amount, 0) || 0;
     
     // 활성 프로모션 수
-    const { data: promosData, count: activePromotions, error: promosError } = await supabaseAdmin
+    const { count: activePromotions } = await supabase
       .from('subscription_promotions')
-      .select('promotion_id', { count: 'exact' })
+      .select('*', { count: 'exact', head: true })
       .eq('is_active', true);
     
-    if (promosError) {
-      console.error('프로모션 수 조회 에러:', promosError);
-    }
-    
-    const result = {
+    res.json({
       totalUsers: totalUsers || 0,
       activeSubscriptions: activeSubscriptions || 0,
       monthlyRevenue: monthlyRevenue,
       activePromotions: activePromotions || 0
-    };
-    
-    console.log('[대시보드 통계]', result);
-    
-    res.json(result);
+    });
   } catch (error) {
     console.error('통계 조회 오류:', error);
     res.status(500).json({ error: '서버 오류' });
@@ -1066,8 +1011,8 @@ router.get('/api/subscriptions', requireAdmin, async (req, res) => {
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    // 구독 조회 (RLS 적용)
-    let query = req.supabase
+    // 구독 조회
+    let query = supabase
       .from('user_subscriptions')
       .select(`
         subscription_id,
@@ -1079,7 +1024,11 @@ router.get('/api/subscriptions', requireAdmin, async (req, res) => {
         created_at,
         canceled_at,
         cancel_at_period_end,
-        billing_plan_id
+        billing_plan_id,
+        subscription_plans!user_subscriptions_billing_plan_id_fkey (
+          plan_name,
+          monthly_price
+        )
       `, { count: 'exact' });
 
     // 상태 필터
@@ -1106,49 +1055,30 @@ router.get('/api/subscriptions', requireAdmin, async (req, res) => {
     const { data: subscriptions, error, count } = await query;
 
     if (error) {
-      console.error('[구독 조회 오류]', error);
+      console.error('구독 조회 오류:', error);
       return res.status(500).json({ error: '서버 오류' });
     }
 
-    console.log(`[구독 조회] ${subscriptions?.length || 0}건 조회`);
-
-    // 각 구독의 회원 정보 및 실제 결제 금액 조회
+    // 각 구독의 회원 정보 조회
     let subscriptionsWithUsers = await Promise.all(
       (subscriptions || []).map(async (sub) => {
-        // users 테이블에서 회원 정보 (RLS 적용)
-        const { data: user } = await req.supabase
+        // users 테이블에서 회원 정보
+        const { data: user } = await supabase
           .from('users')
           .select('pharmacy_name, pharmacist_name')
           .eq('user_id', sub.user_id)
           .single();
 
-        // 플랜 정보 조회 (RLS 적용)
-        const { data: plan } = await req.supabase
-          .from('subscription_plans')
-          .select('plan_name, monthly_price')
-          .eq('plan_id', sub.billing_plan_id)
-          .single();
-
-        // 이메일 조회 (admin-email-helper 사용)
-        const email = await getUserEmail(sub.user_id, req.admin.admin_id, 'subscription_list');
-
-        // 최근 결제 금액 조회 (실제 결제한 금액)
-        const { data: recentPayment } = await supabaseAdmin
-          .from('billing_payments')
-          .select('amount')
-          .eq('user_id', sub.user_id)
-          .eq('status', 'success')
-          .order('approved_at', { ascending: false })
-          .limit(1)
-          .single();
+        // auth.users에서 이메일
+        const { data: { user: authUser } } = await supabase.auth.admin.getUserById(sub.user_id);
 
         return {
           ...sub,
           pharmacy_name: user?.pharmacy_name || '',
           pharmacist_name: user?.pharmacist_name || '',
-          email: email || '',
-          plan_name: plan?.plan_name || '',
-          payment_amount: recentPayment?.amount || 0  // 실제 결제 금액
+          email: authUser?.email || '',
+          plan_name: sub.subscription_plans?.plan_name || '',
+          monthly_price: sub.subscription_plans?.monthly_price || 0
         };
       })
     );
@@ -1193,8 +1123,8 @@ router.get('/api/payments', requireAdmin, async (req, res) => {
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    // 결제 내역 조회 (RLS 적용)
-    let query = req.supabase
+    // 결제 내역 조회
+    let query = supabase
       .from('billing_payments')
       .select(`
         payment_id,
@@ -1234,28 +1164,28 @@ router.get('/api/payments', requireAdmin, async (req, res) => {
     const { data: payments, error, count } = await query;
 
     if (error) {
-      console.error('[결제 내역 조회 오류]', error);
+      console.error('결제 내역 조회 오류:', error);
       return res.status(500).json({ error: '서버 오류' });
     }
 
     // 각 결제의 회원 정보 조회
     const paymentsWithUsers = await Promise.all(
       (payments || []).map(async (payment) => {
-        // users 테이블에서 회원 정보 (RLS 적용)
-        const { data: user } = await req.supabase
+        // users 테이블에서 회원 정보
+        const { data: user } = await supabase
           .from('users')
           .select('pharmacy_name, pharmacist_name')
           .eq('user_id', payment.user_id)
           .single();
 
-        // 이메일 조회 (admin-email-helper 사용)
-        const email = await getUserEmail(payment.user_id, req.admin.admin_id, 'payment_list');
+        // auth.users에서 이메일
+        const { data: { user: authUser } } = await supabase.auth.admin.getUserById(payment.user_id);
 
         return {
           ...payment,
           pharmacy_name: user?.pharmacy_name || '',
           pharmacist_name: user?.pharmacist_name || '',
-          email: email || ''
+          email: authUser?.email || ''
         };
       })
     );
@@ -1296,8 +1226,8 @@ router.get('/api/support-tickets', requireAdmin, async (req, res) => {
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    // 문의 조회 (RLS 적용)
-    let query = req.supabase
+    // 문의 조회
+    let query = supabase
       .from('support_tickets')
       .select('*', { count: 'exact' });
 
@@ -1315,28 +1245,28 @@ router.get('/api/support-tickets', requireAdmin, async (req, res) => {
     const { data: tickets, error, count } = await query;
 
     if (error) {
-      console.error('[문의 조회 오류]', error);
+      console.error('문의 조회 오류:', error);
       return res.status(500).json({ error: '서버 오류' });
     }
 
     // 각 문의의 회원 정보 조회
     const ticketsWithUsers = await Promise.all(
       (tickets || []).map(async (ticket) => {
-        // users 테이블에서 회원 정보 (RLS 적용)
-        const { data: user } = await req.supabase
+        // users 테이블에서 회원 정보
+        const { data: user } = await supabase
           .from('users')
           .select('pharmacy_name, pharmacist_name')
           .eq('user_id', ticket.user_id)
           .single();
 
-        // 이메일 조회 (admin-email-helper 사용)
-        const email = await getUserEmail(ticket.user_id, req.admin.admin_id, 'support_ticket_list');
+        // auth.users에서 이메일
+        const { data: { user: authUser } } = await supabase.auth.admin.getUserById(ticket.user_id);
 
         return {
           ...ticket,
           pharmacy_name: user?.pharmacy_name || '',
           pharmacist_name: user?.pharmacist_name || '',
-          email: email || ''
+          email: authUser?.email || ''
         };
       })
     );
@@ -1359,8 +1289,8 @@ router.get('/api/support-tickets/:ticketId', requireAdmin, async (req, res) => {
   try {
     const { ticketId } = req.params;
 
-    // 문의 상세 정보 (RLS 적용)
-    const { data: ticket, error: ticketError } = await req.supabase
+    // 문의 상세 정보
+    const { data: ticket, error: ticketError } = await supabase
       .from('support_tickets')
       .select('*')
       .eq('ticket_id', ticketId)
@@ -1370,16 +1300,23 @@ router.get('/api/support-tickets/:ticketId', requireAdmin, async (req, res) => {
       return res.status(404).json({ error: '문의를 찾을 수 없습니다.' });
     }
 
-    // 문의 첨부파일 조회 (RLS 적용)
-    const { data: attachments } = await req.supabase
+    // 문의 첨부파일 조회 (reply_id가 NULL인 것만)
+    const { data: attachments, error: attachError } = await supabase
       .from('support_attachments')
       .select('*')
       .eq('ticket_id', ticketId)
       .is('reply_id', null)
       .order('created_at', { ascending: true });
 
-    // 답변 조회 (RLS 적용)
-    const { data: replies } = await req.supabase
+    console.log('문의 첨부파일 조회:', {
+      ticketId,
+      attachments,
+      attachError,
+      count: attachments?.length || 0
+    });
+
+    // 답변 조회
+    const { data: replies } = await supabase
       .from('support_replies')
       .select('*')
       .eq('ticket_id', ticketId)
@@ -1451,15 +1388,6 @@ router.get('/api/support-tickets/:ticketId', requireAdmin, async (req, res) => {
       }))
     });
 
-    // 답변에 admin_email 추가
-    const repliesWithEmail = await Promise.all((replies || []).map(async (reply) => {
-      const adminEmail = await getAdminEmail(req.supabase, reply.admin_id);
-      return {
-        ...reply,
-        admin_email: adminEmail
-      };
-    }));
-
     res.json({
       ticket: {
         ...ticket,
@@ -1468,8 +1396,10 @@ router.get('/api/support-tickets/:ticketId', requireAdmin, async (req, res) => {
         email: authUser?.email || ''
       },
       attachments: attachmentsWithUrl,
-      replies: repliesWithEmail,
-      reply_attachments: replyAttachmentsWithUrl
+      replies: (replies || []).map(reply => ({
+        ...reply,
+        attachments: replyAttachmentsWithUrl.filter(a => a.reply_id === reply.reply_id)
+      }))
     });
   } catch (error) {
     console.error('문의 상세 조회 오류:', error);
@@ -1477,19 +1407,23 @@ router.get('/api/support-tickets/:ticketId', requireAdmin, async (req, res) => {
   }
 });
 
-// 문의 관리 - 답변 작성 (multer로 파일 업로드 지원)
-router.post('/api/support-tickets/:ticketId/reply', requireAdmin, upload.array('attachments', 5), async (req, res) => {
+// 문의 관리 - 답변 작성
+router.post('/api/support-tickets/:ticketId/reply', requireAdmin, async (req, res) => {
   try {
     const { ticketId } = req.params;
-    const { reply_content } = req.body;
-    const adminId = req.admin.admin_id; // requireAdmin에서 설정됨
+    const { reply_content, attachments = [] } = req.body;
+    const adminId = req.session.adminUser?.id;
+
+    if (!adminId) {
+      return res.status(401).json({ error: '관리자 인증이 필요합니다.' });
+    }
 
     if (!reply_content?.trim()) {
       return res.status(400).json({ error: '답변 내용을 입력해주세요.' });
     }
 
-    // 답변 저장 (RLS 적용)
-    const { data: reply, error: replyError } = await req.supabase
+    // 답변 저장
+    const { data: reply, error: replyError } = await supabase
       .from('support_replies')
       .insert({
         ticket_id: ticketId,
@@ -1501,69 +1435,33 @@ router.post('/api/support-tickets/:ticketId/reply', requireAdmin, upload.array('
       .single();
 
     if (replyError) {
-      console.error('[답변 저장 오류]', replyError);
       throw replyError;
     }
 
-    // 첨부파일 업로드 (support.js와 동일한 로직)
-    if (req.files && req.files.length > 0) {
-      for (const file of req.files) {
-        const timestamp = Date.now();
-        const randomStr = Math.random().toString(36).substring(7);
-        const fileExt = path.extname(file.originalname);
-        
-        // 한글 파일명 처리: Buffer로 올바르게 디코딩
-        const originalFileName = Buffer.from(file.originalname, 'latin1').toString('utf8');
-        
-        const fileName = `${timestamp}_${randomStr}${fileExt}`;
-        const filePath = `${ticketId}/${fileName}`;
+    // 첨부파일 저장 (support_attachments 테이블 사용)
+    if (attachments.length > 0 && reply) {
+      const attachmentRecords = attachments.map(att => ({
+        ticket_id: ticketId,
+        reply_id: reply.reply_id,
+        file_path: att.file_path,
+        file_name: att.file_name,
+        mime_type: att.mime_type,
+        file_size: att.file_size || null,
+        uploaded_by: 'admin'
+      }));
 
-        // Storage에 업로드 (RLS 적용)
-        const { data: uploadData, error: uploadError } = await req.supabase
-          .storage
-          .from('support-attachments')
-          .upload(filePath, file.buffer, {
-            contentType: file.mimetype,
-            upsert: false
-          });
-
-        if (uploadError) {
-          console.error('[파일 업로드 오류]', uploadError);
-          continue; // 실패해도 계속 진행
-        }
-
-        // 메타데이터 저장 (RLS 적용)
-        const { error: metaError } = await req.supabase
-          .from('support_attachments')
-          .insert({
-            ticket_id: ticketId,
-            reply_id: reply.reply_id,
-            file_path: filePath,
-            file_name: originalFileName,
-            mime_type: file.mimetype,
-            file_size: file.size,
-            uploaded_by: 'admin'
-          });
-
-        if (metaError) {
-          console.error('[첨부파일 메타데이터 저장 오류]', metaError);
-        }
-      }
+      await supabase.from('support_attachments').insert(attachmentRecords);
     }
 
-    // 문의 상태를 'answered'로 업데이트 (RLS 적용)
-    const { error: updateError } = await req.supabase
+    // 문의 상태를 'answered'로 업데이트
+    await supabase
       .from('support_tickets')
       .update({ status: 'answered', updated_at: new Date().toISOString() })
       .eq('ticket_id', ticketId);
-    
-    if (updateError) {
-      console.error('[문의 상태 업데이트 오류]', updateError);
-    }
 
     res.json({ success: true, reply });
   } catch (error) {
-    console.error('[답변 작성 오류]', error);
+    console.error('답변 작성 오류:', error);
     res.status(500).json({ error: '서버 오류' });
   }
 });
@@ -1583,8 +1481,8 @@ router.get('/api/remote-sessions', requireAdmin, async (req, res) => {
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    // 원격 지원 세션 조회 (RLS 적용)
-    let query = req.supabase
+    // 원격 지원 세션 조회
+    let query = supabase
       .from('remote_support_sessions')
       .select(`
         session_id,
@@ -1628,34 +1526,35 @@ router.get('/api/remote-sessions', requireAdmin, async (req, res) => {
     const { data: sessions, error, count } = await query;
 
     if (error) {
-      console.error('[원격 지원 조회 오류]', error);
+      console.error('원격 지원 목록 조회 오류:', error);
       return res.status(500).json({ error: '서버 오류' });
     }
 
     // 각 세션의 회원 정보 조회
     const sessionsWithUsers = await Promise.all(
       (sessions || []).map(async (session) => {
-        // users 테이블에서 회원 정보 (RLS 적용)
-        const { data: user } = await req.supabase
+        // users 테이블에서 회원 정보
+        const { data: user } = await supabase
           .from('users')
           .select('pharmacy_name, pharmacist_name')
           .eq('user_id', session.user_id)
           .single();
 
-        // 이메일 조회 (admin-email-helper 사용)
-        const email = await getUserEmail(session.user_id, req.admin.admin_id, 'remote_session_list');
+        // auth.users에서 이메일
+        const { data: { user: authUser } } = await supabase.auth.admin.getUserById(session.user_id);
 
         // agent_id가 있으면 상담원 정보도 조회
         let agentEmail = '';
         if (session.agent_id) {
-          agentEmail = await getAdminEmail(req.supabase, session.agent_id);
+          const { data: { user: agentAuthUser } } = await supabase.auth.admin.getUserById(session.agent_id);
+          agentEmail = agentAuthUser?.email || '';
         }
 
         return {
           ...session,
           pharmacy_name: user?.pharmacy_name || '',
           pharmacist_name: user?.pharmacist_name || '',
-          email: email || '',
+          email: authUser?.email || '',
           agent_email: agentEmail
         };
       })

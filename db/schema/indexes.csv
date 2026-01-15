@@ -78,6 +78,7 @@ public,admin_activity_logs,admin_activity_logs_pkey,CREATE UNIQUE INDEX admin_ac
 public,admin_sessions,admin_sessions_pkey,CREATE UNIQUE INDEX admin_sessions_pkey ON public.admin_sessions USING btree (session_id)
 public,admin_user_memos,admin_user_memos_pkey,CREATE UNIQUE INDEX admin_user_memos_pkey ON public.admin_user_memos USING btree (memo_id)
 public,admins,admins_pkey,CREATE UNIQUE INDEX admins_pkey ON public.admins USING btree (admin_id)
+public,admins,idx_admins_email,CREATE INDEX idx_admins_email ON public.admins USING btree (email)
 public,billing_payments,billing_payments_order_id_key,CREATE UNIQUE INDEX billing_payments_order_id_key ON public.billing_payments USING btree (order_id)
 public,billing_payments,billing_payments_pkey,CREATE UNIQUE INDEX billing_payments_pkey ON public.billing_payments USING btree (payment_id)
 public,billing_payments,idx_billing_payments_first_payment_check,"CREATE INDEX idx_billing_payments_first_payment_check ON public.billing_payments USING btree (user_id) WHERE ((status = ANY (ARRAY['paid'::text, 'success'::text])) AND (amount > 0))"

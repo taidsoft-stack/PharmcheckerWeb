@@ -43,6 +43,22 @@ where schemaname in ('public', 'auth')
 order by schemaname, tablename, policyname;
 
 
+--3-1️⃣ Storage RLS 정책 (storage.objects) - 중요!
+select
+  schemaname,
+  tablename,
+  policyname,
+  permissive,
+  roles,
+  cmd,
+  qual,
+  with_check
+from pg_policies
+where schemaname = 'storage'
+  and tablename = 'objects'
+order by policyname;
+
+
 --4️⃣ 인덱스 정의 (auth + public)
 select
   schemaname,

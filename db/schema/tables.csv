@@ -212,6 +212,7 @@ public,admins,role,text,NO,'admin'::text,"관리자 역할 (super_admin, admin, 
 public,admins,is_active,boolean,NO,true,관리자 계정 활성 여부
 public,admins,created_at,timestamp with time zone,NO,now(),관리자 계정 생성 시각
 public,admins,updated_at,timestamp with time zone,NO,now(),관리자 계정 수정 시각
+public,admins,email,character varying,YES,null,관리자 이메일 (auth.users.email과 동기화)
 public,backup_users,user_id,uuid,YES,null,null
 public,backup_users,pharmacist_name,character varying,YES,null,null
 public,backup_users,pharmacist_phone,character varying,YES,null,null
@@ -508,3 +509,4 @@ public,users,is_deleted,boolean,NO,false,회원 탈퇴(soft delete) 여부. true
 public,users,deleted_at,timestamp with time zone,YES,null,탈퇴 처리 시각
 public,users,deleted_reason,text,YES,null,탈퇴 사유(회원 입력 또는 관리자 입력)
 public,users,deleted_by,uuid,YES,null,"탈퇴 처리 주체. NULL=회원 본인, 값 존재=관리자(admins.admin_id)"
+public,users,is_returning_customer,boolean,YES,false,재가입 여부 (사업자번호 기준으로 과거 결제 또는 프로모션 사용 이력이 있으면 true)

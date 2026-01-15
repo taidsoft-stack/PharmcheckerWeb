@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>결제 내역 - 팜체커</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="stylesheet" href="/bulma.min.css">
   <style>
     /* 헤더 공통 스타일 */
@@ -225,12 +226,54 @@
   </section>
 
   <script>
-    const accessToken = localStorage.getItem('access_token');
-
-    // 헤더 사용자 정보 표시
-    const userName = localStorage.getItem('name') || '게스트';
-    document.getElementById('userName').textContent = userName;
-    document.getElementById('userInitial').textContent = userName.charAt(0).toUpperCase();
+    // Supabase 클라이언트 초기화
+    const supabaseClient = window.supabase.createClient(
+      'https://gitbtujexmsjfixgeoha.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpdGJ0dWpleG1zamZpeGdlb2hhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY0NzA5MDIsImV4cCI6MjA4MjA0NjkwMn0.BNN8hauH8NdHZ4vopW_CQ_iK9CR55nfp3JQwuTjrG48'
+    );
+    
+    let currentUser = null;
+    let accessToken = null;
+    
+    // 세션 만료 감지 리스너 설정
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        console.log('세션이 만료되었습니다. 로그인 페이지로 이동합니다.');
+        alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+        window.location.href = '/login';
+      } else if (event === 'TOKEN_REFRESHED' && session) {
+        console.log('토큰이 갱신되었습니다.');
+        accessToken = session.access_token;
+      }
+    });
+    
+    // 세션 확인 및 사용자 정보 로드
+    async function initUser() {
+      console.log('[결제 내역] 로드 시작...');
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      
+      if (!session) {
+        console.log('[결제 내역] 로그인 안 됨 - 로그인 페이지로 이동');
+        alert('로그인이 필요합니다.');
+        window.location.href = '/login?returnTo=' + encodeURIComponent(window.location.pathname);
+        return;
+      }
+      
+      currentUser = session.user;
+      accessToken = session.access_token;
+      console.log('[결제 내역] 로그인 확인:', currentUser.email);
+      
+      // 헤더 사용자 정보 표시
+      const userName = currentUser.user_metadata?.name || '게스트';
+      document.getElementById('userName').textContent = userName;
+      document.getElementById('userInitial').textContent = userName.charAt(0).toUpperCase();
+      
+      // 결제 내역 로드
+      await loadPayments();
+    }
+    
+    // 페이지 로드 시 실행
+    window.addEventListener('DOMContentLoaded', initUser);
 
     // 드롭다운 토글
     function toggleDropdown() {
@@ -250,19 +293,18 @@
     });
 
     // 로그아웃
-    function logout() {
+    async function logout() {
       if (confirm('로그아웃 하시겠습니까?')) {
-        localStorage.clear();
-        sessionStorage.clear();
+        await supabaseClient.auth.signOut();
         window.location.href = '/login';
       }
     }
 
     // 프로필 보기
     function viewProfile() {
-      const userName = localStorage.getItem('name') || '게스트';
-      const userEmail = localStorage.getItem('email') || '이메일 없음';
-      const pharmacyName = localStorage.getItem('pharmacyName') || '약국명 없음';
+      const userName = currentUser?.user_metadata?.name || '게스트';
+      const userEmail = currentUser?.email || '이메일 없음';
+      const pharmacyName = currentUser?.user_metadata?.pharmacyName || '약국명 없음';
       alert(`프로필 정보\n\n이름: ${userName}\n이메일: ${userEmail}\n약국명: ${pharmacyName}`);
     }
 
@@ -295,21 +337,14 @@
       return '일반 결제';
     }
 
-    // 결제 내역 로드
-    async function loadPaymentHistory() {
-      console.log('[결제 내역] 로드 시작...');
+    // 결제 내역 로드 (initUser에서 호출되므로 이름 변경)
+    async function loadPayments() {
+      console.log('[결제 내역] API 호출 시작...', { accessToken: accessToken ? 'exists' : 'missing' });
       try {
         if (!accessToken) {
-          console.log('[결제 내역] 로그인 안 됨 - 빈 내역 표시');
-          document.getElementById('loadingMessage').style.display = 'none';
-          document.getElementById('paymentTable').style.display = 'block';
-          document.getElementById('paymentTableBody').innerHTML = `
-            <tr>
-              <td colspan="6" class="empty-state">
-                <p>로그인이 필요합니다.</p>
-              </td>
-            </tr>
-          `;
+          console.log('[결제 내역] 로그인 안 됨 - 로그인 페이지로 이동');
+          alert('로그인이 필요합니다.');
+          window.location.href = '/login';
           return;
         }
         
@@ -318,6 +353,13 @@
             'Authorization': `Bearer ${accessToken}`
           }
         });
+        
+        if (response.status === 401) {
+          alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+          window.location.href = '/login';
+          return;
+        }
+        
         const data = await response.json();
         
         console.log('[결제 내역] API 응답:', data);
@@ -382,8 +424,6 @@
         `;
       }
     }
-    
-    loadPaymentHistory();
   </script>
 </body>
 </html>

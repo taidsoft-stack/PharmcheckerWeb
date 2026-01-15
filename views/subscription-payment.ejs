@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>구독 결제 - PharmChecker</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://js.tosspayments.com/v2/standard"></script>
   <style>
     * {
@@ -363,6 +364,12 @@
   </div>
 
   <script>
+    // Supabase 클라이언트 초기화
+    const supabaseClient = window.supabase.createClient(
+      'https://gitbtujexmsjfixgeoha.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpdGJ0dWpleG1zamZpeGdlb2hhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY0NzA5MDIsImV4cCI6MjA4MjA0NjkwMn0.BNN8hauH8NdHZ4vopW_CQ_iK9CR55nfp3JQwuTjrG48'
+    );
+    
     // 서버에서 전달받은 데이터 (EJS로 주입)
     const userId = '<%= userId %>';
     const planId = '<%= planId %>';
@@ -485,10 +492,20 @@
       document.getElementById('loading').classList.add('active');
 
       try {
-        // 자동결제 카드 등록 요청 (최종 금액 전달)
+        // Supabase 세션에서 access_token 가져오기
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          alert('로그인 세션이 만료되었습니다. 다시 로그인해주세요.');
+          window.location.href = '/login';
+          return;
+        }
+        
+        const accessToken = session.access_token;
+        
+        // 자동결제 카드 등록 요청 (최종 금액 + access_token 전달)
         await payment.requestBillingAuth({
           method: 'CARD',
-          successUrl: window.location.origin + `/subscription/billing-success?planId=${planId}&userId=${userId}&amount=${finalAmount}&originalPrice=${originalPrice}&promotionId=${selectedPromotion ? selectedPromotion.promotion_id : ''}&referralCodeId=${selectedPromotion ? selectedPromotion.referral_code_id : ''}`,
+          successUrl: window.location.origin + `/subscription/billing-success?planId=${planId}&userId=${userId}&amount=${finalAmount}&originalPrice=${originalPrice}&promotionId=${selectedPromotion ? selectedPromotion.promotion_id : ''}&referralCodeId=${selectedPromotion ? selectedPromotion.referral_code_id : ''}&access_token=${accessToken}`,
           failUrl: window.location.origin + '/subscription/payment-fail',
           customerEmail: localStorage.getItem('email'),
           customerName: localStorage.getItem('name'),

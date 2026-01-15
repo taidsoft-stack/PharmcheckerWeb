@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>결제 내역 - PharmChecker Admin</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      background-color: #f5f5f5;
+    }
+    .navbar {
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .main-content {
+      padding: 2rem 1.5rem;
+    }
+  </style>
+</head>
+<body>
+  <%- include('_header-common.txt') %>
+
+  <div class="main-content">
+    <div class="container is-fluid">
+      <div class="level">
+        <div class="level-left">
+          <div class="level-item">
+            <h1 class="title">결제 내역</h1>
+          </div>
+        </div>
+        <div class="level-right">
+          <div class="level-item">
+            <a href="/admin" class="button is-light">
+              <i class="fas fa-arrow-left"></i>&nbsp; 대시보드
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- 검색 필터 -->
+      <div class="box">
+        <div class="columns is-multiline">
+          <div class="column is-3">
+            <div class="field">
+              <label class="label">약국명</label>
+              <div class="control">
+                <input class="input" type="text" id="pharmacyNameSearch" placeholder="약국명 검색">
+              </div>
+            </div>
+          </div>
+          <div class="column is-3">
+            <div class="field">
+              <label class="label">약사명</label>
+              <div class="control">
+                <input class="input" type="text" id="pharmacistNameSearch" placeholder="약사명 검색">
+              </div>
+            </div>
+          </div>
+          <div class="column is-2">
+            <div class="field">
+              <label class="label">결제 상태</label>
+              <div class="control">
+                <div class="select is-fullwidth">
+                  <select id="statusFilter">
+                    <option value="">전체</option>
+                    <option value="success">성공</option>
+                    <option value="failed">실패</option>
+                    <option value="canceled">취소</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="column is-2">
+            <div class="field">
+              <label class="label">시작일</label>
+              <div class="control">
+                <input class="input" type="date" id="startDateSearch">
+              </div>
+            </div>
+          </div>
+          <div class="column is-2">
+            <div class="field">
+              <label class="label">종료일</label>
+              <div class="control">
+                <input class="input" type="date" id="endDateSearch">
+              </div>
+            </div>
+          </div>
+          <div class="column is-6 is-offset-6">
+            <div class="field is-grouped is-grouped-right">
+              <div class="control">
+                <button class="button is-primary" id="searchBtn">
+                  <i class="fas fa-search"></i>&nbsp; 검색
+                </button>
+              </div>
+              <div class="control">
+                <button class="button is-light" id="resetBtn">
+                  <i class="fas fa-redo"></i>&nbsp; 초기화
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 결제 목록 -->
+      <div class="box">
+        <div class="table-container">
+          <table class="table is-fullwidth is-striped is-hoverable">
+            <thead>
+              <tr>
+                <th style="width: 60px;">No.</th>
+                <th>약국명</th>
+                <th>약사명</th>
+                <th>이메일</th>
+                <th>주문번호</th>
+                <th>결제금액</th>
+                <th>결제상태</th>
+                <th>요청일시</th>
+                <th>승인일시</th>
+                <th>실패사유</th>
+              </tr>
+            </thead>
+            <tbody id="paymentList">
+              <tr>
+                <td colspan="10" class="has-text-centered">
+                  <i class="fas fa-spinner fa-pulse"></i> 로딩 중...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 페이지네이션 -->
+        <nav class="pagination is-centered" role="navigation" id="pagination">
+        </nav>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/admin-payments.js"></script>
+</body>
+</html>

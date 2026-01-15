@@ -737,12 +737,12 @@ router.get('/subscription/plans', function (req, res) {
   res.render('subscription-plans');
 });
 
-// 마이페이지
+// 마이페이지 (구독 정보) - 페이지는 누구나 접근, API만 인증 필요
 router.get('/my-subscription', function (req, res) {
   res.render('my-subscription');
 });
 
-// 결제 내역 페이지
+// 결제 내역 페이지 - 페이지는 누구나 접근, API만 인증 필요
 router.get('/payment-history', function (req, res) {
   res.render('payment-history');
 });
@@ -914,9 +914,12 @@ router.get('/subscription/payment', optionalAuth, async function (req, res) {
 });
 
 // 자동결제 카드 등록 성공 처리 (빌링키 발급)
-router.get('/subscription/billing-success', async function (req, res) {
+router.get('/subscription/billing-success', requireAuth, async function (req, res) {
   try {
-    const { authKey, customerKey, planId, userId, amount, originalPrice, promotionId, referralCodeId } = req.query;
+    const { authKey, customerKey, planId, amount, originalPrice, promotionId, referralCodeId } = req.query;
+    
+    // ✅ 인증된 사용자 ID 사용 (쿼리 파라미터 대신)
+    const userId = req.user.id;
     
     // amount: 프로모션 적용된 최종 금액 (프론트엔드에서 계산됨)
     // originalPrice: 플랜의 원래 가격
@@ -1017,7 +1020,11 @@ router.get('/subscription/billing-success', async function (req, res) {
       throw new Error('플랜 정보를 찾을 수 없습니다.');
     }
 
-    // ===== 6단계: orderId 생성 (0원 결제도 필요) =====
+    // ===== 6단계: UUID 선언 (결제 전에 생성 필요!) =====
+    const subscriptionId = uuidv4();
+    const paymentMethodId = uuidv4();
+
+    // ===== 7단계: orderId 생성 (0원 결제도 필요) =====
     const orderId = 'SUB_' + userId.substring(0, 8) + '_' + Date.now();
     console.log('orderId 생성:', orderId);
 
@@ -1034,35 +1041,73 @@ router.get('/subscription/billing-success', async function (req, res) {
       };
     } else {
       // 일반 결제: 토스 API 호출
-      const paymentResponse = await got.post(`https://api.tosspayments.com/v1/billing/${billingKey}`, {
-        headers: {
-          Authorization: encryptedSecretKey,
-          "Content-Type": "application/json",
-        },
-        json: {
-          customerKey: customerKey,
-          amount: finalAmount,  // 프로모션 적용된 금액
-          orderId: orderId,
-          orderName: promotionData ? 
-            `PharmChecker ${plan.plan_name} 플랜 (${promotionData.promotion_name})` : 
-            `PharmChecker ${plan.plan_name} 플랜 (첫 달)`,
-          customerEmail: '',
-          customerName: '',
-        },
-        responseType: "json",
-      });
+      try {
+        const paymentResponse = await got.post(`https://api.tosspayments.com/v1/billing/${billingKey}`, {
+          headers: {
+            Authorization: encryptedSecretKey,
+            "Content-Type": "application/json",
+          },
+          json: {
+            customerKey: customerKey,
+            amount: finalAmount,  // 프로모션 적용된 금액
+            orderId: orderId,
+            orderName: promotionData ? 
+              `PharmChecker ${plan.plan_name} 플랜 (${promotionData.promotion_name})` : 
+              `PharmChecker ${plan.plan_name} 플랜 (첫 달)`,
+            customerEmail: '',
+            customerName: '',
+          },
+          responseType: "json",
+        });
 
-      payment = paymentResponse.body;
+        payment = paymentResponse.body;
+        
+        // 결제 응답 검증
+        if (!payment || !payment.paymentKey) {
+          console.error('❌ 토스 결제 응답 오류:', payment);
+          throw new Error('결제 승인 응답이 올바르지 않습니다.');
+        }
+        
+      } catch (paymentError) {
+        console.error('❌ 첫 결제 실패:', paymentError.response?.body || paymentError.message);
+        
+        // 토스 API 에러 메시지 추출
+        const errorMessage = paymentError.response?.body?.message || '결제 승인에 실패했습니다.';
+        const errorCode = paymentError.response?.body?.code || 'PAYMENT_FAILED';
+        
+        // ===== 결제 실패 내역 저장 =====
+        const failedPaymentData = {
+          payment_id: uuidv4(),
+          subscription_id: null,  // 구독 생성 안 됨
+          user_id: userId,
+          order_id: orderId,
+          payment_key: null,  // 결제 승인 안 됨
+          billing_key: billingKey,
+          payment_method_id: null,  // 결제수단 저장 안 됨
+          amount: finalAmount,
+          promotion_id: promotionId || null,
+          status: 'failed',
+          fail_reason: errorMessage,
+          requested_at: new Date().toISOString(),
+          approved_at: null,  // 승인 안 됨
+        };
+
+        // supabaseAdmin 사용 (아직 인증 전이므로)
+        await supabaseAdmin
+          .from('billing_payments')
+          .insert(failedPaymentData);
+
+        console.log('✅ 결제 실패 내역 저장 완료:', { orderId, failReason: errorMessage });
+        
+        // 실패 페이지로 리다이렉트 (구독 생성 안 함)
+        return res.redirect('/subscription/payment-fail?message=' + encodeURIComponent(errorMessage) + '&code=' + encodeURIComponent(errorCode));
+      }
     }
 
-    console.log('첫 결제 승인 성공:', { paymentKey: payment.paymentKey, orderId, amount: finalAmount });
+    console.log('✅ 첫 결제 승인 성공:', { paymentKey: payment.paymentKey, orderId, amount: finalAmount });
 
-    // ===== 5단계: UUID 선언 (순서 중요!) =====
-    const subscriptionId = uuidv4();
-    const paymentMethodId = uuidv4();
-
-    // ===== 6단계: payment_methods에 카드 정보 저장 =====
-    const { error: paymentMethodError } = await supabase
+    // ===== 8단계: payment_methods에 카드 정보 저장 =====
+    const { error: paymentMethodError } = await req.supabase
       .from('payment_methods')
       .insert({
         payment_method_id: paymentMethodId,
@@ -1082,7 +1127,7 @@ router.get('/subscription/billing-success', async function (req, res) {
 
     console.log('✅ payment_methods 저장 완료:', paymentMethodId);
 
-    // ===== 7단계: 구독 기간 계산 =====
+    // ===== 9단계: 구독 기간 계산 =====
     const now = new Date();
     let subscriptionData;
     
@@ -1148,8 +1193,8 @@ router.get('/subscription/billing-success', async function (req, res) {
       };
     }
 
-    // ===== 8단계: user_subscriptions 테이블에 구독 생성 =====
-    const { error: subscriptionError } = await supabase
+    // ===== 10단계: user_subscriptions 테이블에 구독 생성 =====
+    const { error: subscriptionError } = await req.supabase
       .from('user_subscriptions')
       .insert(subscriptionData);
 
@@ -1160,7 +1205,7 @@ router.get('/subscription/billing-success', async function (req, res) {
 
     console.log('✅ user_subscriptions 생성 완료:', subscriptionId);
 
-    // ===== 9단계: 무료 프로모션 기록 저장 (subscription_free_grants) =====
+    // ===== 11단계: 무료 프로모션 기록 저장 (subscription_free_grants) =====
     if (finalAmount === 0 && promotionData) {
       // 💡 effective_end = next_billing_at - 1ms (무료 종료 시점)
       // 예: 1/7 가입, 1개월 무료 → 2/6 23:59:59.999까지 무료, 2/7 00:00:00 첫 결제
@@ -1170,7 +1215,7 @@ router.get('/subscription/billing-success', async function (req, res) {
       
       const freeEndDate = new Date(nextBillingDate.getTime() - 1);  // 1ms 빼기 (전날 23:59:59.999)
       
-      const { error: freeGrantError } = await supabase
+      const { error: freeGrantError } = await supabaseAdmin
         .from('subscription_free_grants')
         .insert({
           free_grant_id: uuidv4(),
@@ -1199,7 +1244,7 @@ router.get('/subscription/billing-success', async function (req, res) {
 
       // 무료 프로모션 사용 이력 저장 (promotion_usage_history)
       if (businessNumberClean && promotionData.promotion_code) {
-        const { error: historyError } = await supabase
+        const { error: historyError } = await supabaseAdmin
           .from('promotion_usage_history')
           .insert({
             business_number: businessNumberClean,
@@ -1218,7 +1263,7 @@ router.get('/subscription/billing-success', async function (req, res) {
       }
     }
 
-    // ===== 10단계: 결제 기록 저장 (billing_payments - 0원/유료 모두 기록) =====
+    // ===== 12단계: 결제 기록 저장 (billing_payments - 0원/유료 모두 기록) =====
     // 📌 payment_key: 0원 결제는 NULL (PG 호출 안 함), 유료 결제는 토스에서 발급받음
     // 📌 promotion_id: 실제 결제에 적용된 프로모션 ID 저장 (Source of Truth)
     const paymentData = {
@@ -1236,7 +1281,7 @@ router.get('/subscription/billing-success', async function (req, res) {
       approved_at: new Date().toISOString(),
     };
 
-    const { error: paymentError } = await supabase
+    const { error: paymentError } = await req.supabase
       .from('billing_payments')
       .insert(paymentData);
 
@@ -1310,6 +1355,72 @@ router.get('/subscription/billing-success', async function (req, res) {
     console.error('에러 코드:', error.response?.body?.code);
     console.error('에러 메시지:', error.response?.body?.message);
     console.error('===================');
+    
+    // ===== 긴급: 결제는 성공했지만 DB 저장 실패 시 결제 취소 =====
+    // payment 변수가 존재하면 토스에서 결제가 승인된 상태
+    if (payment && payment.paymentKey) {
+      console.error('⚠️ 결제는 성공했지만 DB 저장 실패! 결제 취소 시도...');
+      
+      try {
+        const encryptedSecretKey = "Basic " + Buffer.from(TOSS_SECRET_KEY + ":").toString("base64");
+        
+        // 토스 결제 취소 API 호출
+        await got.post(`https://api.tosspayments.com/v1/payments/${payment.paymentKey}/cancel`, {
+          headers: {
+            Authorization: encryptedSecretKey,
+            "Content-Type": "application/json",
+          },
+          json: {
+            cancelReason: '시스템 오류로 인한 자동 취소'
+          },
+          responseType: "json",
+        });
+        
+        console.log('✅ 결제 취소 성공:', payment.paymentKey);
+        
+        // 취소 성공 시 실패 내역 저장 (취소됨 상태)
+        await supabaseAdmin
+          .from('billing_payments')
+          .insert({
+            payment_id: uuidv4(),
+            subscription_id: null,
+            user_id: userId,
+            order_id: orderId,
+            payment_key: payment.paymentKey,
+            billing_key: billingKey,
+            payment_method_id: null,
+            amount: finalAmount,
+            promotion_id: promotionId || null,
+            status: 'cancelled',
+            fail_reason: 'DB 저장 실패로 인한 자동 취소: ' + (error.message || '알 수 없는 오류'),
+            requested_at: new Date().toISOString(),
+            approved_at: null,
+          });
+        
+      } catch (cancelError) {
+        console.error('❌ 결제 취소 실패:', cancelError);
+        console.error('🚨 긴급: 수동 환불 필요! paymentKey:', payment.paymentKey);
+        
+        // 취소 실패 시에도 기록 저장 (관리자가 수동 처리해야 함)
+        await supabaseAdmin
+          .from('billing_payments')
+          .insert({
+            payment_id: uuidv4(),
+            subscription_id: null,
+            user_id: userId,
+            order_id: orderId,
+            payment_key: payment.paymentKey,
+            billing_key: billingKey,
+            payment_method_id: null,
+            amount: finalAmount,
+            promotion_id: promotionId || null,
+            status: 'failed',
+            fail_reason: '🚨 수동 환불 필요: ' + (error.message || '알 수 없는 오류'),
+            requested_at: new Date().toISOString(),
+            approved_at: new Date().toISOString(),
+          });
+      }
+    }
     
     // 토스 페이먼츠 에러 처리
     let errorMessage = '결제 처리 중 오류가 발생했습니다.';
@@ -1768,10 +1879,12 @@ router.get('/api/subscription/my', requireAuth, async function (req, res) {
     const userSupabase = req.supabase; // 인증된 Supabase 클라이언트 (RLS 적용됨)
     
     // 구독 정보 조회 - RLS 정책 적용 (auth.uid() = user_id)
+    // status가 active, trialing, past_due인 구독만 조회
     const { data: subscription, error: subError } = await userSupabase
       .from('user_subscriptions')
       .select('*, subscription_plans!user_subscriptions_billing_plan_id_fkey(plan_name, monthly_price)')
       .eq('user_id', userId)
+      .in('status', ['active', 'trialing', 'past_due'])
       .maybeSingle();
 
     if (subError) {

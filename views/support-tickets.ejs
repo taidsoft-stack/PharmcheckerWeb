@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>내 문의 내역 - PharmChecker</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="stylesheet" href="/bulma.min.css">
   <style>
     * {
@@ -514,24 +515,53 @@
   </div>
 
   <script>
+    // Supabase 클라이언트 초기화
+    const supabaseClient = window.supabase.createClient(
+      'https://gitbtujexmsjfixgeoha.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpdGJ0dWpleG1zamZpeGdlb2hhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY0NzA5MDIsImV4cCI6MjA4MjA0NjkwMn0.BNN8hauH8NdHZ4vopW_CQ_iK9CR55nfp3JQwuTjrG48'
+    );
+    
     let ticketsData = [];
     let currentView = 'list'; // 'list' or 'detail'
+    let currentUser = null;
+    let accessToken = null;
+
+    // 세션 만료 감지 리스너 설정
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        console.log('세션이 만료되었습니다. 로그인 페이지로 이동합니다.');
+        alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+        window.location.href = '/login';
+      } else if (event === 'TOKEN_REFRESHED' && session) {
+        console.log('토큰이 갱신되었습니다.');
+        accessToken = session.access_token;
+      }
+    });
 
     // 페이지 로드 시 문의 목록 불러오기
     async function loadTickets() {
       try {
-        const userId = localStorage.getItem('userId');
-        if (!userId) {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        
+        if (!session) {
           window.location.href = '/login';
           return;
         }
+        
+        currentUser = session.user;
+        accessToken = session.access_token;
 
         const response = await fetch('/support/api/tickets', {
           headers: {
-            'X-User-Id': userId
+            'Authorization': `Bearer ${accessToken}`
           }
-        });
-        const data = await response.json();
+        });        
+        if (response.status === 401) {
+          alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+          window.location.href = '/login';
+          return;
+        }
+                const data = await response.json();
 
         if (!response.ok) {
           throw new Error(data.error || '문의 목록을 불러오는데 실패했습니다.');
@@ -633,10 +663,9 @@
     // 문의 상세 보기
     async function viewTicketDetail(ticketId) {
       try {
-        const userId = localStorage.getItem('userId');
         const response = await fetch(`/support/api/tickets/${ticketId}`, {
           headers: {
-            'X-User-Id': userId
+            'Authorization': `Bearer ${accessToken}`
           }
         });
 

@@ -6,24 +6,40 @@ public,admin_sessions,Admin read own sessions,PERMISSIVE,{public},SELECT,(admin_
 public,admin_user_memos,Admin manage user memos,PERMISSIVE,{public},ALL,"(EXISTS ( SELECT 1
    FROM admins
   WHERE ((admins.admin_id = auth.uid()) AND (admins.is_active = true))))",null
-public,admins,Admin read self,PERMISSIVE,{public},SELECT,(admin_id = auth.uid()),null
-public,admins,Super admin manage admins,PERMISSIVE,{public},ALL,"(EXISTS ( SELECT 1
-   FROM admins admins_1
-  WHERE ((admins_1.admin_id = auth.uid()) AND (admins_1.role = 'super_admin'::text) AND (admins_1.is_active = true))))",null
-public,billing_payments,Service role can access all payments,PERMISSIVE,{service_role},ALL,true,true
+public,admin_user_memos,admin_user_memos_admin_manage,PERMISSIVE,{public},ALL,is_admin(),null
+public,admins,Super admin manage via service role,PERMISSIVE,{public},ALL,false,false
+public,admins,admins_select_own_final,PERMISSIVE,{public},SELECT,(auth.uid() = admin_id),null
+public,billing_payments,Users can insert own payments,PERMISSIVE,{public},INSERT,null,(auth.uid() = user_id)
+public,billing_payments,Users can view own payments,PERMISSIVE,{public},SELECT,(auth.uid() = user_id),null
+public,billing_payments,Users cannot update payments,PERMISSIVE,{public},UPDATE,false,null
+public,billing_payments,billing_payments_admin_full_access,PERMISSIVE,{public},ALL,is_admin(),null
+public,billing_payments,billing_payments_select_own,PERMISSIVE,{public},SELECT,(auth.uid() = user_id),null
 public,doctors,tenant_rls_doctors,PERMISSIVE,{public},ALL,(tenant_id = auth.uid()),null
 public,drugs,tenant_rls_drugs,PERMISSIVE,{public},ALL,(tenant_id = auth.uid()),null
 public,faqs,Anyone can read active FAQs,PERMISSIVE,{public},SELECT,(is_active = true),null
-public,faqs,Service role can manage all FAQs,PERMISSIVE,{service_role},ALL,true,true
+public,faqs,Users cannot delete FAQs,PERMISSIVE,{public},DELETE,false,null
+public,faqs,Users cannot insert FAQs,PERMISSIVE,{public},INSERT,null,false
+public,faqs,Users cannot update FAQs,PERMISSIVE,{public},UPDATE,false,null
+public,faqs,faqs_admin_manage,PERMISSIVE,{public},ALL,is_admin(),null
 public,patient_drugs,tenant_rls_patient_drugs,PERMISSIVE,{public},ALL,(tenant_id = auth.uid()),null
 public,patients,tenant_rls_patients,PERMISSIVE,{public},ALL,(tenant_id = auth.uid()),null
-public,payment_methods,Service role can access all payment methods,PERMISSIVE,{service_role},ALL,true,true
-public,pending_user_promotions,Service role can access promotions,PERMISSIVE,{service_role},ALL,true,true
+public,payment_methods,Users can delete own payment methods,PERMISSIVE,{public},DELETE,(auth.uid() = user_id),null
+public,payment_methods,Users can insert own payment methods,PERMISSIVE,{public},INSERT,null,(auth.uid() = user_id)
+public,payment_methods,Users can update own payment methods,PERMISSIVE,{public},UPDATE,(auth.uid() = user_id),(auth.uid() = user_id)
+public,payment_methods,Users can view own payment methods,PERMISSIVE,{public},SELECT,(auth.uid() = user_id),null
+public,payment_methods,payment_methods_admin_full_access,PERMISSIVE,{public},ALL,is_admin(),null
+public,payment_methods,payment_methods_delete_own,PERMISSIVE,{public},DELETE,(auth.uid() = user_id),null
+public,payment_methods,payment_methods_insert_own,PERMISSIVE,{public},INSERT,null,(auth.uid() = user_id)
+public,payment_methods,payment_methods_select_own,PERMISSIVE,{public},SELECT,(auth.uid() = user_id),null
+public,payment_methods,payment_methods_update_own,PERMISSIVE,{public},UPDATE,(auth.uid() = user_id),null
+public,pending_user_promotions,Users can view own pending promotions,PERMISSIVE,{public},SELECT,(auth.uid() = user_id),null
+public,pending_user_promotions,Users cannot modify pending promotions,PERMISSIVE,{public},ALL,false,false
+public,pending_user_promotions,pending_user_promotions_admin_manage,PERMISSIVE,{public},ALL,is_admin(),null
 public,promotion_usage_history,Admin manage promotion usage history,PERMISSIVE,{public},ALL,"(EXISTS ( SELECT 1
    FROM admins a
   WHERE ((a.admin_id = auth.uid()) AND (a.is_active = true))))",null
-public,promotion_usage_history,No direct access for users,PERMISSIVE,{public},ALL,false,null
-public,promotion_usage_history,Service role full access,PERMISSIVE,{service_role},ALL,true,true
+public,promotion_usage_history,promotion_usage_history_admin_manage,PERMISSIVE,{public},ALL,is_admin(),null
+public,referral_codes,referral_codes_admin_manage,PERMISSIVE,{public},ALL,is_admin(),null
 public,remote_support_sessions,Admin cannot insert remote support session,PERMISSIVE,{public},INSERT,null,false
 public,remote_support_sessions,Admin manage remote support,PERMISSIVE,{public},ALL,"(EXISTS ( SELECT 1
    FROM admins a
@@ -37,12 +53,20 @@ public,remote_support_sessions,User can read own remote sessions,PERMISSIVE,{pub
 public,remote_support_sessions,User can read own remote support sessions,PERMISSIVE,{public},SELECT,(user_id = auth.uid()),null
 public,remote_support_sessions,User cannot update remote support session,PERMISSIVE,{public},UPDATE,false,null
 public,remote_support_sessions,User create remote support session,PERMISSIVE,{public},INSERT,null,((user_id = auth.uid()) AND (status = 'requested'::text))
+public,remote_support_sessions,remote_support_sessions_admin_full_access,PERMISSIVE,{public},ALL,is_admin(),null
+public,remote_support_sessions,remote_support_sessions_user_insert,PERMISSIVE,{public},INSERT,null,(auth.uid() = user_id)
+public,remote_support_sessions,remote_support_sessions_user_own,PERMISSIVE,{public},SELECT,(auth.uid() = user_id),null
 public,rxheads,tenant_rls_rxheads,PERMISSIVE,{public},ALL,(tenant_id = auth.uid()),null
 public,rxrecipe_details,tenant_rls_rxrecipe_details,PERMISSIVE,{public},ALL,(tenant_id = auth.uid()),null
 public,rxrecipes,tenant_rls_rxrecipes,PERMISSIVE,{public},ALL,(tenant_id = auth.uid()),null
 public,subscription_plans,Anyone can view subscription plans,PERMISSIVE,{public},SELECT,(is_active = true),null
-public,subscription_plans,Service role can manage subscription plans,PERMISSIVE,{service_role},ALL,true,true
-public,subscription_promotions,Service role can access subscription promotions,PERMISSIVE,{service_role},ALL,true,true
+public,subscription_plans,Users cannot delete subscription plans,PERMISSIVE,{public},DELETE,false,null
+public,subscription_plans,Users cannot insert subscription plans,PERMISSIVE,{public},INSERT,null,false
+public,subscription_plans,Users cannot update subscription plans,PERMISSIVE,{public},UPDATE,false,null
+public,subscription_plans,subscription_plans_admin_manage,PERMISSIVE,{public},ALL,is_admin(),null
+public,subscription_promotions,Users can view active promotions,PERMISSIVE,{public},SELECT,(is_active = true),null
+public,subscription_promotions,Users cannot modify promotions,PERMISSIVE,{public},ALL,false,false
+public,subscription_promotions,subscription_promotions_admin_manage,PERMISSIVE,{public},ALL,is_admin(),null
 public,support_attachments,Admin can delete attachments,PERMISSIVE,{public},DELETE,"(EXISTS ( SELECT 1
    FROM admins a
   WHERE ((a.admin_id = auth.uid()) AND (a.is_active = true))))",null
@@ -55,14 +79,6 @@ public,support_attachments,Admin can upload reply attachments,PERMISSIVE,{public
 public,support_attachments,Admin manage attachments,PERMISSIVE,{public},ALL,"(EXISTS ( SELECT 1
    FROM admins
   WHERE ((admins.admin_id = auth.uid()) AND (admins.is_active = true))))",null
-public,support_attachments,User can read own attachments,PERMISSIVE,{public},SELECT,"((ticket_id IN ( SELECT support_tickets.ticket_id
-   FROM support_tickets
-  WHERE (support_tickets.user_id = auth.uid()))) AND is_active_user())",null
-public,support_attachments,User can read own ticket attachments,PERMISSIVE,{public},SELECT,"((reply_id IS NULL) AND (ticket_id IN ( SELECT t.ticket_id
-   FROM support_tickets t
-  WHERE (t.user_id = auth.uid()))) AND (EXISTS ( SELECT 1
-   FROM users u
-  WHERE ((u.user_id = auth.uid()) AND (u.is_deleted = false)))))",null
 public,support_attachments,User can upload attachment,PERMISSIVE,{public},INSERT,null,"(ticket_id IN ( SELECT support_tickets.ticket_id
    FROM support_tickets
   WHERE (support_tickets.user_id = auth.uid())))"
@@ -72,22 +88,19 @@ public,support_attachments,User can upload ticket attachments,PERMISSIVE,{public
    FROM users u
   WHERE ((u.user_id = auth.uid()) AND (u.is_deleted = false)))))"
 public,support_attachments,User cannot update attachments,PERMISSIVE,{public},UPDATE,false,null
-public,support_attachments,User read own attachments,PERMISSIVE,{public},SELECT,"(ticket_id IN ( SELECT support_tickets.ticket_id
-   FROM support_tickets
-  WHERE (support_tickets.user_id = auth.uid())))",null
 public,support_attachments,User upload attachment,PERMISSIVE,{public},INSERT,null,"(ticket_id IN ( SELECT support_tickets.ticket_id
    FROM support_tickets
   WHERE (support_tickets.user_id = auth.uid())))"
+public,support_attachments,support_attachments_user_select_own,PERMISSIVE,{public},SELECT,"(ticket_id IN ( SELECT support_tickets.ticket_id
+   FROM support_tickets
+  WHERE (support_tickets.user_id = auth.uid())))",null
 public,support_replies,Admin create reply,PERMISSIVE,{public},INSERT,null,"(EXISTS ( SELECT 1
    FROM admins a
   WHERE ((a.admin_id = auth.uid()) AND (a.is_active = true))))"
 public,support_replies,Admin manage replies,PERMISSIVE,{public},ALL,"(EXISTS ( SELECT 1
    FROM admins
   WHERE ((admins.admin_id = auth.uid()) AND (admins.is_active = true))))",null
-public,support_replies,User can read public replies,PERMISSIVE,{public},SELECT,"((is_public = true) AND (ticket_id IN ( SELECT support_tickets.ticket_id
-   FROM support_tickets
-  WHERE (support_tickets.user_id = auth.uid()))) AND is_active_user())",null
-public,support_replies,User read public replies,PERMISSIVE,{public},SELECT,"((is_public = true) AND (ticket_id IN ( SELECT support_tickets.ticket_id
+public,support_replies,User can read public replies to own tickets,PERMISSIVE,{public},SELECT,"((is_public = true) AND (ticket_id IN ( SELECT support_tickets.ticket_id
    FROM support_tickets
   WHERE (support_tickets.user_id = auth.uid()))))",null
 public,support_tickets,Admin full access,PERMISSIVE,{public},ALL,"(EXISTS ( SELECT 1
@@ -101,22 +114,43 @@ public,support_tickets,Admin update ticket,PERMISSIVE,{public},UPDATE,"(EXISTS (
   WHERE ((admins.admin_id = auth.uid()) AND (admins.is_active = true))))",null
 public,support_tickets,User can create ticket,PERMISSIVE,{public},INSERT,null,(user_id = auth.uid())
 public,support_tickets,User can insert own tickets,PERMISSIVE,{public},INSERT,null,((user_id = auth.uid()) AND is_active_user())
-public,support_tickets,User can read own tickets,PERMISSIVE,{public},SELECT,((user_id = auth.uid()) AND is_active_user()),null
 public,support_tickets,User cannot update ticket,PERMISSIVE,{public},UPDATE,false,null
 public,support_tickets,User create ticket,PERMISSIVE,{public},INSERT,null,(user_id = auth.uid())
-public,usage_billing_period_stats,Service role can access usage stats,PERMISSIVE,{service_role},ALL,true,true
-public,usage_daily_stats,Service role can access daily stats,PERMISSIVE,{service_role},ALL,true,true
+public,support_tickets,support_tickets_admin_full_access,PERMISSIVE,{public},ALL,is_admin(),null
+public,support_tickets,support_tickets_user_insert,PERMISSIVE,{public},INSERT,null,(auth.uid() = user_id)
+public,support_tickets,support_tickets_user_select_own,PERMISSIVE,{public},SELECT,(auth.uid() = user_id),null
+public,usage_billing_period_stats,Users can view own usage stats,PERMISSIVE,{public},SELECT,"(EXISTS ( SELECT 1
+   FROM user_subscriptions us
+  WHERE ((us.subscription_id = usage_billing_period_stats.subscription_id) AND (us.user_id = auth.uid()))))",null
+public,usage_billing_period_stats,Users cannot modify usage stats,PERMISSIVE,{public},ALL,false,false
+public,usage_billing_period_stats,usage_billing_period_stats_admin_full_access,PERMISSIVE,{public},ALL,is_admin(),null
+public,usage_billing_period_stats,usage_billing_period_stats_select_own,PERMISSIVE,{public},SELECT,"(auth.uid() IN ( SELECT user_subscriptions.user_id
+   FROM user_subscriptions
+  WHERE (user_subscriptions.subscription_id = usage_billing_period_stats.subscription_id)))",null
+public,usage_daily_stats,Users can view own daily stats,PERMISSIVE,{public},SELECT,(auth.uid() = user_id),null
+public,usage_daily_stats,Users cannot modify daily stats,PERMISSIVE,{public},ALL,false,false
+public,usage_daily_stats,usage_daily_stats_admin_full_access,PERMISSIVE,{public},ALL,is_admin(),null
+public,usage_daily_stats,usage_daily_stats_select_own,PERMISSIVE,{public},SELECT,(auth.uid() = user_id),null
 public,user_deletion_logs,Admin read all deletion logs,PERMISSIVE,{public},SELECT,"(EXISTS ( SELECT 1
    FROM admins
   WHERE ((admins.admin_id = auth.uid()) AND (admins.is_active = true))))",null
 public,user_deletion_logs,No direct insert to deletion logs,PERMISSIVE,{public},INSERT,null,false
 public,user_deletion_logs,User can read own deletion logs,PERMISSIVE,{public},SELECT,(user_id = auth.uid()),null
-public,user_subscriptions,Service role can access all subscriptions,PERMISSIVE,{service_role},ALL,true,true
+public,user_subscriptions,Users can insert own subscriptions,PERMISSIVE,{public},INSERT,null,(auth.uid() = user_id)
+public,user_subscriptions,Users can update own subscriptions,PERMISSIVE,{public},UPDATE,(auth.uid() = user_id),(auth.uid() = user_id)
+public,user_subscriptions,Users can view own subscriptions,PERMISSIVE,{public},SELECT,(auth.uid() = user_id),null
+public,user_subscriptions,user_subscriptions_admin_full_access,PERMISSIVE,{public},ALL,is_admin(),null
+public,user_subscriptions,user_subscriptions_insert_own,PERMISSIVE,{public},INSERT,null,(auth.uid() = user_id)
+public,user_subscriptions,user_subscriptions_select_own,PERMISSIVE,{public},SELECT,(auth.uid() = user_id),null
+public,user_subscriptions,user_subscriptions_update_own,PERMISSIVE,{public},UPDATE,(auth.uid() = user_id),null
 public,users,Anyone can insert users,PERMISSIVE,{public},INSERT,null,true
 public,users,Service role can access all users,PERMISSIVE,{service_role},ALL,true,true
 public,users,Users can update their own data,PERMISSIVE,{public},UPDATE,((auth.uid() = user_id) AND (is_deleted = false)),null
 public,users,Users can view their own data,PERMISSIVE,{public},SELECT,((auth.uid() = user_id) AND (is_deleted = false)),null
+public,users,users_admin_full_access,PERMISSIVE,{public},ALL,is_admin(),null
 public,users,users_insert_self,PERMISSIVE,{public},INSERT,null,(user_id = auth.uid())
 public,users,users_no_delete,PERMISSIVE,{public},DELETE,false,null
+public,users,users_select_own,PERMISSIVE,{public},SELECT,(auth.uid() = user_id),null
 public,users,users_select_self,PERMISSIVE,{public},SELECT,((user_id = auth.uid()) AND (is_deleted = false)),null
+public,users,users_update_own,PERMISSIVE,{public},UPDATE,(auth.uid() = user_id),null
 public,users,users_update_self,PERMISSIVE,{public},UPDATE,((user_id = auth.uid()) AND (is_deleted = false)),((user_id = auth.uid()) AND (is_deleted = false))

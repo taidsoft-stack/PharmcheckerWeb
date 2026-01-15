@@ -1,5 +1,5 @@
-schema_name,function_name,arguments,language,security_definer,volatility,function_definition
-auth,email,,sql,false,s,"CREATE OR REPLACE FUNCTION auth.email()
+schema,function_name,definition
+auth,email,"CREATE OR REPLACE FUNCTION auth.email()
  RETURNS text
  LANGUAGE sql
  STABLE
@@ -11,7 +11,7 @@ AS $function$
   )::text
 $function$
 "
-auth,jwt,,sql,false,s,"CREATE OR REPLACE FUNCTION auth.jwt()
+auth,jwt,"CREATE OR REPLACE FUNCTION auth.jwt()
  RETURNS jsonb
  LANGUAGE sql
  STABLE
@@ -23,7 +23,7 @@ AS $function$
     )::jsonb
 $function$
 "
-auth,role,,sql,false,s,"CREATE OR REPLACE FUNCTION auth.role()
+auth,role,"CREATE OR REPLACE FUNCTION auth.role()
  RETURNS text
  LANGUAGE sql
  STABLE
@@ -35,7 +35,7 @@ AS $function$
   )::text
 $function$
 "
-auth,uid,,sql,false,s,"CREATE OR REPLACE FUNCTION auth.uid()
+auth,uid,"CREATE OR REPLACE FUNCTION auth.uid()
  RETURNS uuid
  LANGUAGE sql
  STABLE
@@ -47,7 +47,7 @@ AS $function$
   )::uuid
 $function$
 "
-public,force_user_deletion,"_user_id uuid, _reason text, _ip_address inet, _user_agent text",plpgsql,true,v,"CREATE OR REPLACE FUNCTION public.force_user_deletion(_user_id uuid, _reason text DEFAULT NULL::text, _ip_address inet DEFAULT NULL::inet, _user_agent text DEFAULT NULL::text)
+public,force_user_deletion,"CREATE OR REPLACE FUNCTION public.force_user_deletion(_user_id uuid, _reason text DEFAULT NULL::text, _ip_address inet DEFAULT NULL::inet, _user_agent text DEFAULT NULL::text)
  RETURNS void
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -101,7 +101,7 @@ begin
 end;
 $function$
 "
-public,get_miss_mached_drug,_pack_barcode text,plpgsql,true,v,"CREATE OR REPLACE FUNCTION public.get_miss_mached_drug(_pack_barcode text)
+public,get_miss_mached_drug,"CREATE OR REPLACE FUNCTION public.get_miss_mached_drug(_pack_barcode text)
  RETURNS TABLE(drug_name text, location text, source text)
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -136,7 +136,7 @@ BEGIN
 END;
 $function$
 "
-public,get_rxheads,"_patient_number text, _selected_date text, _patient_name text, _limit integer, _offset integer",plpgsql,true,v,"CREATE OR REPLACE FUNCTION public.get_rxheads(_patient_number text DEFAULT NULL::text, _selected_date text DEFAULT NULL::text, _patient_name text DEFAULT NULL::text, _limit integer DEFAULT 50, _offset integer DEFAULT 0)
+public,get_rxheads,"CREATE OR REPLACE FUNCTION public.get_rxheads(_patient_number text DEFAULT NULL::text, _selected_date text DEFAULT NULL::text, _patient_name text DEFAULT NULL::text, _limit integer DEFAULT 50, _offset integer DEFAULT 0)
  RETURNS TABLE(no integer, rxhead_id bigint, tfn bigint, pid text, patient_name text, patient_birth text, patient_memo text, is_complete smallint)
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -187,7 +187,7 @@ BEGIN
 END;
 $function$
 "
-public,get_rxrecipe_by_textfile_number,_textfile_number bigint,plpgsql,true,v,"CREATE OR REPLACE FUNCTION public.get_rxrecipe_by_textfile_number(_textfile_number bigint)
+public,get_rxrecipe_by_textfile_number,"CREATE OR REPLACE FUNCTION public.get_rxrecipe_by_textfile_number(_textfile_number bigint)
  RETURNS TABLE(checked smallint, total double precision, drug_name text, dose real, times smallint, days smallint, pack_barcode text, base_barcode text, location text, rxrecipe_id bigint, recipe_order smallint, drug_type text, drug_id uuid, drug_usage text, created_at timestamp with time zone, is_atc boolean, is_use boolean, patientdrug_id bigint, morning real, afternoon real, evening real, night real, special real, usage_code smallint, separate smallint, patientdrugmemo text, patientdrug_created_at timestamp with time zone, patientdrug_updated_at timestamp with time zone)
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -300,7 +300,7 @@ BEGIN
 END;
 $function$
 "
-public,get_rxrecipe_details_by_rxrecipe_id,_rxrecipe_id bigint,plpgsql,true,v,"CREATE OR REPLACE FUNCTION public.get_rxrecipe_details_by_rxrecipe_id(_rxrecipe_id bigint)
+public,get_rxrecipe_details_by_rxrecipe_id,"CREATE OR REPLACE FUNCTION public.get_rxrecipe_details_by_rxrecipe_id(_rxrecipe_id bigint)
  RETURNS TABLE(id bigint, rxrecipe_id bigint, pack_serial text, check_consume numeric, updated_at timestamp with time zone)
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -321,7 +321,7 @@ BEGIN
 END;
 $function$
 "
-public,get_unit_from_pack_barcode,_pack_barcode text,plpgsql,false,v,"CREATE OR REPLACE FUNCTION public.get_unit_from_pack_barcode(_pack_barcode text)
+public,get_unit_from_pack_barcode,"CREATE OR REPLACE FUNCTION public.get_unit_from_pack_barcode(_pack_barcode text)
  RETURNS real
  LANGUAGE plpgsql
 AS $function$
@@ -366,7 +366,7 @@ BEGIN
 END;
 $function$
 "
-public,increase_checked,"_rxrecipe_id bigint, _delta integer",plpgsql,false,v,"CREATE OR REPLACE FUNCTION public.increase_checked(_rxrecipe_id bigint, _delta integer)
+public,increase_checked,"CREATE OR REPLACE FUNCTION public.increase_checked(_rxrecipe_id bigint, _delta integer)
  RETURNS integer
  LANGUAGE plpgsql
 AS $function$
@@ -381,7 +381,7 @@ BEGIN
 END;
 $function$
 "
-public,increment_referral_code_usage,p_referral_code_id uuid,plpgsql,true,v,"CREATE OR REPLACE FUNCTION public.increment_referral_code_usage(p_referral_code_id uuid)
+public,increment_referral_code_usage,"CREATE OR REPLACE FUNCTION public.increment_referral_code_usage(p_referral_code_id uuid)
  RETURNS boolean
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -402,7 +402,7 @@ BEGIN
 END;
 $function$
 "
-public,insert_full_rx,"_textfile_number bigint, _patient_number bigint, _proccessing_number integer, _prescribe_date date, _patient_birth date, _patient_name text, _hospital_name text, _doctor_name text, _created_at timestamp with time zone, _rxrecipes jsonb",plpgsql,false,v,"CREATE OR REPLACE FUNCTION public.insert_full_rx(_textfile_number bigint, _patient_number bigint, _proccessing_number integer, _prescribe_date date, _patient_birth date, _patient_name text, _hospital_name text, _doctor_name text, _created_at timestamp with time zone, _rxrecipes jsonb)
+public,insert_full_rx,"CREATE OR REPLACE FUNCTION public.insert_full_rx(_textfile_number bigint, _patient_number bigint, _proccessing_number integer, _prescribe_date date, _patient_birth date, _patient_name text, _hospital_name text, _doctor_name text, _created_at timestamp with time zone, _rxrecipes jsonb)
  RETURNS void
  LANGUAGE plpgsql
  SET search_path TO 'public'
@@ -428,6 +428,7 @@ DECLARE
   v_temp_drug_id        uuid;
   v_base_barcode        text;
 
+  -- pattern
   d_morning             real;
   d_afternoon           real;
   d_evening             real;
@@ -512,7 +513,7 @@ BEGIN
     v_drug_search_code := '880' || v_drug_code || '%';
 
     -----------------------------------------------------------------
-    -- 5-1. 정식 drug UPDATE + RETURNING (drug_type 동기화)
+    -- 5-1. drug 확보 (기존 로직 유지)
     -----------------------------------------------------------------
     UPDATE public.drugs
        SET drug_type  = v_drug_type,
@@ -523,51 +524,16 @@ BEGIN
        AND is_temp_barcode = false
      RETURNING id INTO v_drug_id;
 
-    -----------------------------------------------------------------
-    -- 5-2. 없으면 temp drug 검색
-    -----------------------------------------------------------------
     IF v_drug_id IS NULL THEN
-      SELECT id, base_barcode
-        INTO v_temp_drug_id, v_base_barcode
+      SELECT id
+        INTO v_drug_id
         FROM public.drugs
        WHERE tenant_id = v_tenant_id
          AND base_barcode LIKE v_drug_search_code
-         AND is_temp_barcode = true
        LIMIT 1;
     END IF;
 
-    -----------------------------------------------------------------
-    -- 5-3. temp → drug_library 기준 승격 (unit = 0)
-    -----------------------------------------------------------------
-    IF v_drug_id IS NULL AND v_temp_drug_id IS NOT NULL THEN
-      UPDATE public.drugs d
-         SET drug_name       = dl.drug_name,
-             unit            = COALESCE(dl.unit, d.unit),
-             base_barcode    = dl.base_barcode,
-             pack_barcode    = dl.pack_barcode,
-             drug_type       = v_drug_type,
-             is_temp_barcode = false,
-             updated_at      = now()
-        FROM public.drug_library dl
-       WHERE d.id = v_temp_drug_id
-         AND dl.base_barcode LIKE v_drug_search_code
-         AND COALESCE(dl.unit, 0) = 0
-       RETURNING d.id INTO v_drug_id;
-    END IF;
-
-    -----------------------------------------------------------------
-    -- 5-4. 승격 실패 시 기존 temp 사용
-    -----------------------------------------------------------------
     IF v_drug_id IS NULL THEN
-      v_drug_id := v_temp_drug_id;
-    END IF;
-
-    -----------------------------------------------------------------
-    -- 5-5. temp조차 없으면 새 temp 생성
-    -----------------------------------------------------------------
-    IF v_drug_id IS NULL THEN
-      v_base_barcode := '880' || v_drug_code || '0';
-
       INSERT INTO public.drugs (
         tenant_id, drug_name, unit, drug_type,
         base_barcode, pack_barcode,
@@ -578,8 +544,8 @@ BEGIN
         v_drug_name,
         0,
         v_drug_type,
-        v_base_barcode,
-        v_base_barcode,
+        '880' || v_drug_code || '0',
+        '880' || v_drug_code || '0',
         now(),
         true
       )
@@ -587,7 +553,7 @@ BEGIN
     END IF;
 
     -----------------------------------------------------------------
-    -- 5-6. RxRecipe INSERT
+    -- 5-2. RxRecipe INSERT
     -----------------------------------------------------------------
     INSERT INTO public.rxrecipes (
       tenant_id, textfile_number, drug_id, recipe_order,
@@ -599,61 +565,87 @@ BEGIN
     );
 
     -----------------------------------------------------------------
-    -- 5-7. patient_drugs (기존 로직 그대로)
+    -- 5-3. 기본 패턴 (fallback)
     -----------------------------------------------------------------
-    IF UPPER(v_drug_type) = 'T' THEN
-      d_morning := 0; d_afternoon := 0;
-      d_evening := 0; d_night := 0; d_special := 0;
+    d_morning := 0; d_afternoon := 0;
+    d_evening := 0; d_night := 0; d_special := 0;
 
-      IF v_times <= 1 THEN
-        d_morning := v_dose;
-      ELSIF v_times = 2 THEN
-        d_morning := v_dose; d_evening := v_dose;
-      ELSIF v_times = 3 THEN
-        d_morning := v_dose; d_afternoon := v_dose; d_evening := v_dose;
-      ELSE
-        d_morning := v_dose; d_afternoon := v_dose;
-        d_evening := v_dose; d_night := v_dose;
-      END IF;
+    IF v_times <= 1 THEN
+      d_morning := v_dose;
+    ELSIF v_times = 2 THEN
+      d_morning := v_dose; d_evening := v_dose;
+    ELSIF v_times = 3 THEN
+      d_morning := v_dose; d_afternoon := v_dose; d_evening := v_dose;
+    ELSE
+      d_morning := v_dose; d_afternoon := v_dose;
+      d_evening := v_dose; d_night := v_dose;
+    END IF;
 
-      SELECT patientdrug_id
-        INTO _pd_id
-        FROM public.patient_drugs
-       WHERE tenant_id  = v_tenant_id
-         AND patient_id = _patient_id
-         AND drug_id    = v_drug_id
-         AND public.sorted_pattern5(
-               morning, afternoon, evening, night, special
-             )
-           =
-             public.sorted_pattern5(
-               d_morning, d_afternoon, d_evening, d_night, d_special
-             )
-       LIMIT 1;
+    -----------------------------------------------------------------
+    -- 5-4. patient_drugs 기존 패턴 (최우선)
+    -----------------------------------------------------------------
+    SELECT
+      morning, afternoon, evening, night, special
+    INTO
+      d_morning, d_afternoon, d_evening, d_night, d_special
+    FROM public.patient_drugs
+    WHERE tenant_id  = v_tenant_id
+      AND patient_id = _patient_id
+      AND drug_id    = v_drug_id
+      AND is_patient_use = true
+    LIMIT 1;
 
-      IF _pd_id IS NOT NULL THEN
-        UPDATE public.patient_drugs
-           SET created_at = _created_at
-         WHERE tenant_id = v_tenant_id
-           AND patientdrug_id = _pd_id;
-      ELSE
-        INSERT INTO public.patient_drugs (
-          tenant_id, patient_id, drug_id,
-          morning, afternoon, evening, night, special,
-          created_at
-        )
-        VALUES (
-          v_tenant_id, _patient_id, v_drug_id,
-          d_morning, d_afternoon, d_evening, d_night, d_special,
-          _created_at
-        );
-      END IF;
+    -----------------------------------------------------------------
+    -- 5-5. fixed_pattern_drugs 적용
+    -----------------------------------------------------------------
+    IF NOT FOUND THEN
+      SELECT
+        morning, afternoon, evening, night, special
+      INTO
+        d_morning, d_afternoon, d_evening, d_night, d_special
+      FROM public.fixed_pattern_drugs
+      WHERE drug_id = v_drug_id
+      LIMIT 1;
+    END IF;
+
+    -----------------------------------------------------------------
+    -- 5-6. patient_drugs UPSERT
+    -----------------------------------------------------------------
+    SELECT patientdrug_id
+      INTO _pd_id
+      FROM public.patient_drugs
+     WHERE tenant_id  = v_tenant_id
+       AND patient_id = _patient_id
+       AND drug_id    = v_drug_id
+       AND public.sorted_pattern5(
+             morning, afternoon, evening, night, special)
+         =
+           public.sorted_pattern5(
+             d_morning, d_afternoon, d_evening, d_night, d_special)
+     LIMIT 1;
+
+    IF _pd_id IS NOT NULL THEN
+      UPDATE public.patient_drugs
+         SET created_at = _created_at
+       WHERE tenant_id = v_tenant_id
+         AND patientdrug_id = _pd_id;
+    ELSE
+      INSERT INTO public.patient_drugs (
+        tenant_id, patient_id, drug_id,
+        morning, afternoon, evening, night, special,
+        created_at
+      )
+      VALUES (
+        v_tenant_id, _patient_id, v_drug_id,
+        d_morning, d_afternoon, d_evening, d_night, d_special,
+        _created_at
+      );
     END IF;
   END LOOP;
 END;
 $function$
 "
-public,insert_pack_barcode_unit,"_pack_barcode text, _drug_name text, _unit real",plpgsql,true,v,"CREATE OR REPLACE FUNCTION public.insert_pack_barcode_unit(_pack_barcode text, _drug_name text, _unit real)
+public,insert_pack_barcode_unit,"CREATE OR REPLACE FUNCTION public.insert_pack_barcode_unit(_pack_barcode text, _drug_name text, _unit real)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -731,7 +723,7 @@ BEGIN
 END;
 $function$
 "
-public,is_active_user,,sql,true,s,"CREATE OR REPLACE FUNCTION public.is_active_user()
+public,is_active_user,"CREATE OR REPLACE FUNCTION public.is_active_user()
  RETURNS boolean
  LANGUAGE sql
  STABLE SECURITY DEFINER
@@ -745,7 +737,35 @@ AS $function$
   );
 $function$
 "
-public,request_user_deletion,"_reason text, _ip_address inet, _user_agent text",plpgsql,true,v,"CREATE OR REPLACE FUNCTION public.request_user_deletion(_reason text DEFAULT NULL::text, _ip_address inet DEFAULT NULL::inet, _user_agent text DEFAULT NULL::text)
+public,is_admin,"CREATE OR REPLACE FUNCTION public.is_admin()
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.admins
+    WHERE admin_id = auth.uid()
+    AND is_active = true
+  );
+END;
+$function$
+"
+public,is_super_admin,"CREATE OR REPLACE FUNCTION public.is_super_admin()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+AS $function$
+  -- auth.jwt()에서 직접 role 확인 (RLS 우회)
+  SELECT EXISTS (
+    SELECT 1
+    FROM auth.users
+    WHERE id = auth.uid()
+    AND raw_user_meta_data->>'role' = 'super_admin'
+  );
+$function$
+"
+public,request_user_deletion,"CREATE OR REPLACE FUNCTION public.request_user_deletion(_reason text DEFAULT NULL::text, _ip_address inet DEFAULT NULL::inet, _user_agent text DEFAULT NULL::text)
  RETURNS void
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -789,144 +809,7 @@ begin
 end;
 $function$
 "
-public,save_patient_drug_modal,"_patientdrug_id bigint, _patient_id uuid, _pack_barcode text, _drug_name text, _morning real, _afternoon real, _evening real, _night real, _special real, _usage_code smallint, _separate smallint, _is_pharmacy_use boolean, _is_patient_use boolean, _patientdrugmemo text, _is_atc boolean, _location text",plpgsql,true,v,"CREATE OR REPLACE FUNCTION public.save_patient_drug_modal(_patientdrug_id bigint, _patient_id uuid, _pack_barcode text, _drug_name text, _morning real, _afternoon real, _evening real, _night real, _special real, _usage_code smallint, _separate smallint, _is_pharmacy_use boolean, _is_patient_use boolean, _patientdrugmemo text, _is_atc boolean, _location text)
- RETURNS TABLE(patientdrug_id bigint, status text)
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
-DECLARE
-  v_tenant_id uuid := auth.uid();
-  v_drug_id   uuid;
-  v_pd_id     bigint;
-  v_status    text;
-  v_rows      integer;
-BEGIN
-  IF _pack_barcode IS NULL OR btrim(_pack_barcode) = '' THEN
-    RAISE EXCEPTION 'pack_barcode required';
-  END IF;
-
-  -- normalize 0 -> NULL to force insert
-  IF _patientdrug_id = 0 THEN
-    _patientdrug_id := NULL;
-  END IF;
-
-  -- 1) find/create drug
-  SELECT d.id
-    INTO v_drug_id
-  FROM public.drugs d
-  WHERE d.tenant_id = v_tenant_id
-    AND d.pack_barcode = _pack_barcode
-  ORDER BY d.created_at DESC NULLS LAST, d.id DESC
-  LIMIT 1;
-
-  IF v_drug_id IS NULL THEN
-    INSERT INTO public.drugs(
-      tenant_id, id, drug_name, pack_barcode, base_barcode, unit, created_at, is_atc, is_pharmacy_use, location
-    )
-    VALUES (
-      v_tenant_id, gen_random_uuid(),
-      COALESCE(_drug_name, _pack_barcode),
-      _pack_barcode,
-      _pack_barcode,
-      0, now(),
-      COALESCE(_is_atc,false),
-      COALESCE(_is_pharmacy_use,true),
-      NULLIF(btrim(_location),'')
-    )
-    RETURNING public.drugs.id INTO v_drug_id;
-    v_status := 'drug_created';
-  END IF;
-
-    -- 2) persist drug metadata (incl. location) even when patient_drug only is being updated
-    UPDATE public.drugs d
-      SET drug_name       = COALESCE(_drug_name, d.drug_name),
-        is_atc          = COALESCE(_is_atc, d.is_atc),
-        is_pharmacy_use = COALESCE(_is_pharmacy_use, d.is_pharmacy_use),
-        location        = COALESCE(NULLIF(btrim(_location), ''), d.location),
-        updated_at      = now()
-    WHERE d.id = v_drug_id
-      AND d.tenant_id = v_tenant_id;
-
-  -- 3) upsert patient_drugs (patient use flag stored per patient)
-  IF _patientdrug_id IS NOT NULL THEN
-    UPDATE public.patient_drugs p
-       SET 
-           morning         = COALESCE(_morning,0),
-           afternoon       = COALESCE(_afternoon,0),
-           evening         = COALESCE(_evening,0),
-           night           = COALESCE(_night,0),
-           special         = COALESCE(_special,0),
-           usage_code      = COALESCE(_usage_code, p.usage_code),
-           separate        = COALESCE(_separate, p.separate),
-          is_patient_use  = COALESCE(_is_patient_use, p.is_patient_use),
-           patientdrugmemo = _patientdrugmemo,
-           updated_at      = now()
-     WHERE p.patientdrug_id = _patientdrug_id
-       AND p.tenant_id = v_tenant_id;
-
-    GET DIAGNOSTICS v_rows = ROW_COUNT;
-    IF v_rows = 0 THEN
-      INSERT INTO public.patient_drugs(
-        tenant_id, patient_id, drug_id,
-        morning, afternoon, evening, night, special,
-        usage_code, separate, is_patient_use, patientdrugmemo, created_at
-      )
-      VALUES(
-        v_tenant_id, _patient_id, v_drug_id,
-        COALESCE(_morning,0), COALESCE(_afternoon,0), COALESCE(_evening,0), COALESCE(_night,0), COALESCE(_special,0),
-        COALESCE(_usage_code,1), COALESCE(_separate,1), COALESCE(_is_patient_use, COALESCE(_is_pharmacy_use, true)), _patientdrugmemo, now()
-      )
-      RETURNING public.patient_drugs.patientdrug_id INTO v_pd_id;
-      v_status := 'patientdrug_created_fallback';
-    ELSE
-      v_pd_id := _patientdrug_id;
-      v_status := 'patientdrug_updated';
-    END IF;
-  ELSE
-    BEGIN
-      INSERT INTO public.patient_drugs(
-        tenant_id, patient_id, drug_id,
-        morning, afternoon, evening, night, special,
-        usage_code, separate, is_patient_use, patientdrugmemo, created_at
-      )
-      VALUES(
-        v_tenant_id, _patient_id, v_drug_id,
-        COALESCE(_morning,0), COALESCE(_afternoon,0), COALESCE(_evening,0), COALESCE(_night,0), COALESCE(_special,0),
-        COALESCE(_usage_code,1), COALESCE(_separate,1), COALESCE(_is_patient_use, COALESCE(_is_pharmacy_use, true)), _patientdrugmemo, now()
-      )
-      RETURNING public.patient_drugs.patientdrug_id INTO v_pd_id;
-      v_status := 'patientdrug_created';
-    EXCEPTION WHEN unique_violation THEN
-      SELECT p.patientdrug_id
-        INTO v_pd_id
-      FROM public.patient_drugs p
-      WHERE p.tenant_id   = v_tenant_id
-        AND p.patient_id  = _patient_id
-        AND p.drug_id     = v_drug_id
-        AND public.sorted_pattern4(p.morning, p.afternoon, p.evening, p.night)
-            = public.sorted_pattern4(COALESCE(_morning,0), COALESCE(_afternoon,0), COALESCE(_evening,0), COALESCE(_night,0))
-      ORDER BY p.created_at DESC NULLS LAST, p.patientdrug_id DESC
-      LIMIT 1;
-
-      IF v_pd_id IS NOT NULL THEN
-        UPDATE public.patient_drugs p
-           SET updated_at = now(),
-             is_patient_use = COALESCE(_is_patient_use, p.is_patient_use),
-             patientdrugmemo = _patientdrugmemo
-         WHERE p.patientdrug_id = v_pd_id
-           AND p.tenant_id = v_tenant_id;
-        v_status := 'patientdrug_pattern_merged';
-      ELSE
-        v_status := 'error_pattern_not_found';
-      END IF;
-    END;
-  END IF;
-
-  RETURN QUERY SELECT v_pd_id, v_status;
-END;
-$function$
-"
-public,save_patient_drug_modal,"_patientdrug_id bigint, _patient_id uuid, _pack_barcode text, _drug_name text, _morning real, _afternoon real, _evening real, _night real, _special real, _usage_code smallint, _separate smallint, _is_pharmacy_use boolean, _is_patient_use boolean, _u_canister real, _patientdrugmemo text, _is_atc boolean, _location text",plpgsql,true,v,"CREATE OR REPLACE FUNCTION public.save_patient_drug_modal(_patientdrug_id bigint, _patient_id uuid, _pack_barcode text, _drug_name text, _morning real, _afternoon real, _evening real, _night real, _special real, _usage_code smallint, _separate smallint, _is_pharmacy_use boolean, _is_patient_use boolean, _u_canister real, _patientdrugmemo text, _is_atc boolean, _location text)
+public,save_patient_drug_modal,"CREATE OR REPLACE FUNCTION public.save_patient_drug_modal(_patientdrug_id bigint, _patient_id uuid, _pack_barcode text, _drug_name text, _morning real, _afternoon real, _evening real, _night real, _special real, _usage_code smallint, _separate smallint, _is_pharmacy_use boolean, _is_patient_use boolean, _u_canister real, _patientdrugmemo text, _is_atc boolean, _location text)
  RETURNS TABLE(patientdrug_id bigint, status text)
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -1065,7 +948,144 @@ BEGIN
 END;
 $function$
 "
-public,set_rxrecipe_details_dead_by_id,"_id bigint, _rxrecipe_id bigint",plpgsql,true,v,"CREATE OR REPLACE FUNCTION public.set_rxrecipe_details_dead_by_id(_id bigint, _rxrecipe_id bigint)
+public,save_patient_drug_modal,"CREATE OR REPLACE FUNCTION public.save_patient_drug_modal(_patientdrug_id bigint, _patient_id uuid, _pack_barcode text, _drug_name text, _morning real, _afternoon real, _evening real, _night real, _special real, _usage_code smallint, _separate smallint, _is_pharmacy_use boolean, _is_patient_use boolean, _patientdrugmemo text, _is_atc boolean, _location text)
+ RETURNS TABLE(patientdrug_id bigint, status text)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+DECLARE
+  v_tenant_id uuid := auth.uid();
+  v_drug_id   uuid;
+  v_pd_id     bigint;
+  v_status    text;
+  v_rows      integer;
+BEGIN
+  IF _pack_barcode IS NULL OR btrim(_pack_barcode) = '' THEN
+    RAISE EXCEPTION 'pack_barcode required';
+  END IF;
+
+  -- normalize 0 -> NULL to force insert
+  IF _patientdrug_id = 0 THEN
+    _patientdrug_id := NULL;
+  END IF;
+
+  -- 1) find/create drug
+  SELECT d.id
+    INTO v_drug_id
+  FROM public.drugs d
+  WHERE d.tenant_id = v_tenant_id
+    AND d.pack_barcode = _pack_barcode
+  ORDER BY d.created_at DESC NULLS LAST, d.id DESC
+  LIMIT 1;
+
+  IF v_drug_id IS NULL THEN
+    INSERT INTO public.drugs(
+      tenant_id, id, drug_name, pack_barcode, base_barcode, unit, created_at, is_atc, is_pharmacy_use, location
+    )
+    VALUES (
+      v_tenant_id, gen_random_uuid(),
+      COALESCE(_drug_name, _pack_barcode),
+      _pack_barcode,
+      _pack_barcode,
+      0, now(),
+      COALESCE(_is_atc,false),
+      COALESCE(_is_pharmacy_use,true),
+      NULLIF(btrim(_location),'')
+    )
+    RETURNING public.drugs.id INTO v_drug_id;
+    v_status := 'drug_created';
+  END IF;
+
+    -- 2) persist drug metadata (incl. location) even when patient_drug only is being updated
+    UPDATE public.drugs d
+      SET drug_name       = COALESCE(_drug_name, d.drug_name),
+        is_atc          = COALESCE(_is_atc, d.is_atc),
+        is_pharmacy_use = COALESCE(_is_pharmacy_use, d.is_pharmacy_use),
+        location        = COALESCE(NULLIF(btrim(_location), ''), d.location),
+        updated_at      = now()
+    WHERE d.id = v_drug_id
+      AND d.tenant_id = v_tenant_id;
+
+  -- 3) upsert patient_drugs (patient use flag stored per patient)
+  IF _patientdrug_id IS NOT NULL THEN
+    UPDATE public.patient_drugs p
+       SET 
+           morning         = COALESCE(_morning,0),
+           afternoon       = COALESCE(_afternoon,0),
+           evening         = COALESCE(_evening,0),
+           night           = COALESCE(_night,0),
+           special         = COALESCE(_special,0),
+           usage_code      = COALESCE(_usage_code, p.usage_code),
+           separate        = COALESCE(_separate, p.separate),
+          is_patient_use  = COALESCE(_is_patient_use, p.is_patient_use),
+           patientdrugmemo = _patientdrugmemo,
+           updated_at      = now()
+     WHERE p.patientdrug_id = _patientdrug_id
+       AND p.tenant_id = v_tenant_id;
+
+    GET DIAGNOSTICS v_rows = ROW_COUNT;
+    IF v_rows = 0 THEN
+      INSERT INTO public.patient_drugs(
+        tenant_id, patient_id, drug_id,
+        morning, afternoon, evening, night, special,
+        usage_code, separate, is_patient_use, patientdrugmemo, created_at
+      )
+      VALUES(
+        v_tenant_id, _patient_id, v_drug_id,
+        COALESCE(_morning,0), COALESCE(_afternoon,0), COALESCE(_evening,0), COALESCE(_night,0), COALESCE(_special,0),
+        COALESCE(_usage_code,1), COALESCE(_separate,1), COALESCE(_is_patient_use, COALESCE(_is_pharmacy_use, true)), _patientdrugmemo, now()
+      )
+      RETURNING public.patient_drugs.patientdrug_id INTO v_pd_id;
+      v_status := 'patientdrug_created_fallback';
+    ELSE
+      v_pd_id := _patientdrug_id;
+      v_status := 'patientdrug_updated';
+    END IF;
+  ELSE
+    BEGIN
+      INSERT INTO public.patient_drugs(
+        tenant_id, patient_id, drug_id,
+        morning, afternoon, evening, night, special,
+        usage_code, separate, is_patient_use, patientdrugmemo, created_at
+      )
+      VALUES(
+        v_tenant_id, _patient_id, v_drug_id,
+        COALESCE(_morning,0), COALESCE(_afternoon,0), COALESCE(_evening,0), COALESCE(_night,0), COALESCE(_special,0),
+        COALESCE(_usage_code,1), COALESCE(_separate,1), COALESCE(_is_patient_use, COALESCE(_is_pharmacy_use, true)), _patientdrugmemo, now()
+      )
+      RETURNING public.patient_drugs.patientdrug_id INTO v_pd_id;
+      v_status := 'patientdrug_created';
+    EXCEPTION WHEN unique_violation THEN
+      SELECT p.patientdrug_id
+        INTO v_pd_id
+      FROM public.patient_drugs p
+      WHERE p.tenant_id   = v_tenant_id
+        AND p.patient_id  = _patient_id
+        AND p.drug_id     = v_drug_id
+        AND public.sorted_pattern4(p.morning, p.afternoon, p.evening, p.night)
+            = public.sorted_pattern4(COALESCE(_morning,0), COALESCE(_afternoon,0), COALESCE(_evening,0), COALESCE(_night,0))
+      ORDER BY p.created_at DESC NULLS LAST, p.patientdrug_id DESC
+      LIMIT 1;
+
+      IF v_pd_id IS NOT NULL THEN
+        UPDATE public.patient_drugs p
+           SET updated_at = now(),
+             is_patient_use = COALESCE(_is_patient_use, p.is_patient_use),
+             patientdrugmemo = _patientdrugmemo
+         WHERE p.patientdrug_id = v_pd_id
+           AND p.tenant_id = v_tenant_id;
+        v_status := 'patientdrug_pattern_merged';
+      ELSE
+        v_status := 'error_pattern_not_found';
+      END IF;
+    END;
+  END IF;
+
+  RETURN QUERY SELECT v_pd_id, v_status;
+END;
+$function$
+"
+public,set_rxrecipe_details_dead_by_id,"CREATE OR REPLACE FUNCTION public.set_rxrecipe_details_dead_by_id(_id bigint, _rxrecipe_id bigint)
  RETURNS integer
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -1110,7 +1130,7 @@ BEGIN
 END;
 $function$
 "
-public,sorted_pattern5,"a real, b real, c real, d real, e real",sql,false,i,"CREATE OR REPLACE FUNCTION public.sorted_pattern5(a real, b real, c real, d real, e real)
+public,sorted_pattern5,"CREATE OR REPLACE FUNCTION public.sorted_pattern5(a real, b real, c real, d real, e real)
  RETURNS real[]
  LANGUAGE sql
  IMMUTABLE STRICT
@@ -1120,7 +1140,26 @@ AS $function$
   );
 $function$
 "
-public,trg_rxrecipe_details_after_delete,,plpgsql,true,v,"CREATE OR REPLACE FUNCTION public.trg_rxrecipe_details_after_delete()
+public,sync_admin_email,"CREATE OR REPLACE FUNCTION public.sync_admin_email()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  -- INSERT 또는 UPDATE 시 이메일 동기화
+  IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN
+    -- public.admins 업데이트 (관리자인 경우만)
+    UPDATE public.admins
+    SET email = NEW.email,
+        updated_at = NOW()
+    WHERE admin_id = NEW.id;
+  END IF;
+  
+  RETURN NEW;
+END;
+$function$
+"
+public,trg_rxrecipe_details_after_delete,"CREATE OR REPLACE FUNCTION public.trg_rxrecipe_details_after_delete()
  RETURNS trigger
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -1145,7 +1184,7 @@ BEGIN
 END;
 $function$
 "
-public,undo_user_deletion,_user_id uuid,plpgsql,true,v,"CREATE OR REPLACE FUNCTION public.undo_user_deletion(_user_id uuid)
+public,undo_user_deletion,"CREATE OR REPLACE FUNCTION public.undo_user_deletion(_user_id uuid)
  RETURNS void
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -1168,7 +1207,7 @@ BEGIN
 END;
 $function$
 "
-public,update_admin_user_memos_updated_at,,plpgsql,false,v,"CREATE OR REPLACE FUNCTION public.update_admin_user_memos_updated_at()
+public,update_admin_user_memos_updated_at,"CREATE OR REPLACE FUNCTION public.update_admin_user_memos_updated_at()
  RETURNS trigger
  LANGUAGE plpgsql
 AS $function$
@@ -1178,7 +1217,7 @@ BEGIN
 END;
 $function$
 "
-public,update_atc_drug,"v_drug_name text, v_drug_code text",plpgsql,true,v,"CREATE OR REPLACE FUNCTION public.update_atc_drug(v_drug_name text, v_drug_code text)
+public,update_atc_drug,"CREATE OR REPLACE FUNCTION public.update_atc_drug(v_drug_name text, v_drug_code text)
  RETURNS boolean
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -1289,7 +1328,7 @@ BEGIN
 END;
 $function$
 "
-public,update_checked_and_packserial,"_rxrecipe_id bigint, _delta integer, _pack_serial text",plpgsql,false,v,"CREATE OR REPLACE FUNCTION public.update_checked_and_packserial(_rxrecipe_id bigint, _delta integer, _pack_serial text)
+public,update_checked_and_packserial,"CREATE OR REPLACE FUNCTION public.update_checked_and_packserial(_rxrecipe_id bigint, _delta integer, _pack_serial text)
  RETURNS jsonb
  LANGUAGE plpgsql
 AS $function$
@@ -1348,7 +1387,7 @@ BEGIN
 END;
 $function$
 "
-public,update_drug_location_by_drug_code,"v_drug_name text, v_drug_code text, _location text",plpgsql,false,v,"CREATE OR REPLACE FUNCTION public.update_drug_location_by_drug_code(v_drug_name text, v_drug_code text, _location text)
+public,update_drug_location_by_drug_code,"CREATE OR REPLACE FUNCTION public.update_drug_location_by_drug_code(v_drug_name text, v_drug_code text, _location text)
  RETURNS boolean
  LANGUAGE plpgsql
 AS $function$
@@ -1455,7 +1494,7 @@ BEGIN
 END;
 $function$
 "
-public,update_patient_memo_by_id,"_patient_id uuid, _memo text",plpgsql,false,v,"CREATE OR REPLACE FUNCTION public.update_patient_memo_by_id(_patient_id uuid, _memo text)
+public,update_patient_memo_by_id,"CREATE OR REPLACE FUNCTION public.update_patient_memo_by_id(_patient_id uuid, _memo text)
  RETURNS patients
  LANGUAGE plpgsql
  SET search_path TO 'public'
@@ -1479,7 +1518,7 @@ BEGIN
 END;
 $function$
 "
-public,update_rxhead_completed,"_rxhead_id bigint, _is_completed smallint",plpgsql,true,v,"CREATE OR REPLACE FUNCTION public.update_rxhead_completed(_rxhead_id bigint, _is_completed smallint)
+public,update_rxhead_completed,"CREATE OR REPLACE FUNCTION public.update_rxhead_completed(_rxhead_id bigint, _is_completed smallint)
  RETURNS void
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -1504,7 +1543,7 @@ BEGIN
 END;
 $function$
 "
-public,update_updated_at_column,,plpgsql,false,v,"CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+public,update_updated_at_column,"CREATE OR REPLACE FUNCTION public.update_updated_at_column()
  RETURNS trigger
  LANGUAGE plpgsql
 AS $function$
@@ -1514,7 +1553,7 @@ BEGIN
 END;
 $function$
 "
-public,upsert_drug_library_conditional,_rows jsonb,plpgsql,false,v,"CREATE OR REPLACE FUNCTION public.upsert_drug_library_conditional(_rows jsonb)
+public,upsert_drug_library_conditional,"CREATE OR REPLACE FUNCTION public.upsert_drug_library_conditional(_rows jsonb)
  RETURNS void
  LANGUAGE plpgsql
 AS $function$
