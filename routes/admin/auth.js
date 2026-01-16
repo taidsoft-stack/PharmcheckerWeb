@@ -101,9 +101,4 @@ router.post('/logout', async (req, res) => {
   }
 });
 
-// 로그인 페이지 렌더링
-router.get('/login', (req, res) => {
-  res.render('admin-login');
-});
-
 module.exports = router;

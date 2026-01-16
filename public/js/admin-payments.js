@@ -34,7 +34,6 @@ async function checkAuth() {
     const { data: { session } } = await supabaseClient.auth.getSession();
     
     if (!session) {
-      console.log('Supabase 세션 없음 - 로그인 페이지로 이동');
       window.location.href = '/admin/login';
       return;
     }
@@ -42,7 +41,6 @@ async function checkAuth() {
     // 세션 토큰을 localStorage에 저장
     localStorage.setItem('admin_session_token', session.access_token);
     
-    console.log('Supabase 세션 확인 완료:', session.user.email);
   } catch (error) {
     console.error('세션 확인 실패:', error);
     window.location.href = '/admin/login';

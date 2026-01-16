@@ -48,6 +48,11 @@ router.get('/remote-support', (req, res) => {
   res.render('admin-remote-support');
 });
 
+// 로그인 페이지 (authRouter에서 가져옴)
+router.get('/login', (req, res) => {
+  res.render('admin-login');
+});
+
 // API 라우터 연결
 router.use('/api', authRouter);
 router.use('/api', dashboardRouter);

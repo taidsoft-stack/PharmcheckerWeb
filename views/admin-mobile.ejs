@@ -200,9 +200,7 @@
         if (session.user.email) {
           document.getElementById('adminName').textContent = session.user.email;
         }
-        
-        console.log('Supabase 세션 확인 완료:', session.user.email);
-        
+      
         // 초기 목록 로드 (전체 목록)
         loadUsers();
       } catch (error) {

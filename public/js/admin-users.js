@@ -27,16 +27,13 @@ async function checkAuth() {
     const { data: { session } } = await supabaseClient.auth.getSession();
     
     if (!session) {
-      console.log('Supabase 세션 없음 - 로그인 페이지로 이동');
+   
       window.location.href = '/admin/login';
       return;
     }
     
     // 세션 토큰을 localStorage에 저장
     localStorage.setItem('admin_session_token', session.access_token);
-    
-    console.log('Supabase 세션 확인 완료:', session.user.email);
-    console.log('저장된 토큰 (처음 50자):', session.access_token.substring(0, 50) + '...');
     
     // 관리자 이름 표시
     if (session.user.email) {

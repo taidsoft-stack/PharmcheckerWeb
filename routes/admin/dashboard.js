@@ -12,7 +12,6 @@ router.get('/me', requireAdmin, async (req, res) => {
       role: req.admin.role
     });
   } catch (error) {
-    console.error('내 정보 조회 오류:', error);
     res.status(500).json({ error: '서버 오류' });
   }
 });
@@ -26,19 +25,11 @@ router.get('/dashboard/stats', requireAdmin, async (req, res) => {
       .select('user_id', { count: 'exact' })
       .eq('is_deleted', false);
     
-    if (usersError) {
-      console.error('회원 수 조회 에러:', usersError);
-    }
-    
     // 활성 구독 수
     const { data: subsData, count: activeSubscriptions, error: subsError } = await req.supabase
       .from('user_subscriptions')
       .select('subscription_id', { count: 'exact' })
       .eq('status', 'active');
-    
-    if (subsError) {
-      console.error('구독 수 조회 에러:', subsError);
-    }
     
     // 이번 달 매출
     const startOfMonth = new Date();
@@ -51,10 +42,6 @@ router.get('/dashboard/stats', requireAdmin, async (req, res) => {
       .eq('status', 'success')
       .gte('approved_at', startOfMonth.toISOString());
     
-    if (paymentsError) {
-      console.error('결제 내역 조회 에러:', paymentsError);
-    }
-    
     const monthlyRevenue = payments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
     
     // 활성 프로모션 수
@@ -62,10 +49,6 @@ router.get('/dashboard/stats', requireAdmin, async (req, res) => {
       .from('subscription_promotions')
       .select('promotion_id', { count: 'exact' })
       .eq('is_active', true);
-    
-    if (promosError) {
-      console.error('프로모션 수 조회 에러:', promosError);
-    }
     
     const result = {
       totalUsers: totalUsers || 0,
@@ -76,7 +59,6 @@ router.get('/dashboard/stats', requireAdmin, async (req, res) => {
     
     res.json(result);
   } catch (error) {
-    console.error('통계 조회 오류:', error);
     res.status(500).json({ error: '서버 오류' });
   }
 });
@@ -97,7 +79,6 @@ router.get('/activities/recent', requireAdmin, async (req, res) => {
 
     res.json({ activities: activities || [] });
   } catch (error) {
-    console.error('최근 활동 로그 조회 오류:', error);
     res.status(500).json({ error: '서버 오류' });
   }
 });
